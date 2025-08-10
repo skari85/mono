@@ -26,6 +26,16 @@ class SettingsManager: ObservableObject {
     @Published var whisperModel: String = UserDefaults.standard.string(forKey: "whisper_model") ?? "whisper-large-v3-turbo" {
         didSet { UserDefaults.standard.set(whisperModel, forKey: "whisper_model") }
     }
+    // Voice activation (VOX) preferences
+    @Published var autoVoiceDetectionEnabled: Bool = {
+        if UserDefaults.standard.object(forKey: "auto_voice_detection_enabled") == nil { return true }
+        return UserDefaults.standard.bool(forKey: "auto_voice_detection_enabled")
+    }() { didSet { UserDefaults.standard.set(autoVoiceDetectionEnabled, forKey: "auto_voice_detection_enabled") } }
+    @Published var voiceActivationThreshold: Double = {
+        let v = UserDefaults.standard.double(forKey: "voice_activation_threshold")
+        return v == 0 ? 0.15 : v
+    }() { didSet { UserDefaults.standard.set(voiceActivationThreshold, forKey: "voice_activation_threshold") } }
+
 
 
 
@@ -319,6 +329,65 @@ struct NotificationSettingsView: View {
                 }
             }
         }
+    }
+}
+
+
+// MARK: - Recording Settings View
+struct RecordingSettingsView: View {
+    @EnvironmentObject private var settingsManager: SettingsManager
+
+    var body: some View {
+        List {
+            Section {
+                Toggle(isOn: Binding(
+                    get: { settingsManager.autoVoiceDetectionEnabled },
+                    set: { newVal in
+                        settingsManager.autoVoiceDetectionEnabled = newVal
+                        settingsManager.saveSettings()
+                    }
+                )) {
+                    HStack {
+                        Image(systemName: "waveform")
+                            .foregroundColor(.cassetteTeal)
+                            .frame(width: 24)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Auto Voice Detection (VOX)")
+                                .font(.headline)
+                                .foregroundColor(.cassetteTextDark)
+                            Text("Start recording automatically when voice is detected.")
+                                .font(.caption)
+                                .foregroundColor(.cassetteTextMedium)
+                        }
+                    }
+                }
+                .tint(.cassetteTeal)
+
+                HStack(spacing: 12) {
+                    Image(systemName: "slider.horizontal.3")
+                        .foregroundColor(.cassetteTextMedium)
+                        .frame(width: 24)
+                    Text("Activation Threshold")
+                        .foregroundColor(.cassetteTextDark)
+                    Spacer()
+                    Slider(value: Binding(
+                        get: { settingsManager.voiceActivationThreshold },
+                        set: { val in settingsManager.voiceActivationThreshold = val; settingsManager.saveSettings() }
+                    ), in: 0.05...0.4)
+                    .frame(width: 160)
+                }
+            } header: {
+                Text("Voice Activation")
+                    .foregroundColor(.cassetteTextMedium)
+            } footer: {
+                Text("When enabled, Summarize’s mic can start automatically based on your voice. Adjust the threshold to tune sensitivity.")
+                    .foregroundColor(.cassetteTextMedium)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .background(Color.cassetteWarmGray.opacity(0.1))
+        .navigationTitle("Recording")
+        .navigationBarTitleDisplayMode(.large)
     }
 }
 

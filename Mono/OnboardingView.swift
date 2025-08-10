@@ -34,6 +34,18 @@ struct OnboardingView: View {
                         message: "Mono uses the microphone to record your voice messages. Recordings stay on your device unless you choose to share.",
                         icon: "lock.circle"
                     ).tag(2)
+
+                    OnboardingPage(
+                        title: "Summarize with one swipe",
+                        message: "Swipe from the right edge to Summarize. Export as Markdown/JSON or send to Chat.",
+                        icon: "list.bullet.rectangle.fill"
+                    ).tag(3)
+
+                    OnboardingPage(
+                        title: "Turn Action Items into Tasks",
+                        message: "Add action items to Tasks and optionally set reminders.",
+                        icon: "checklist"
+                    ).tag(4)
                 }
                 .tabViewStyle(PageTabViewStyle())
                 .indexViewStyle(.page(backgroundDisplayMode: .always))
@@ -43,7 +55,7 @@ struct OnboardingView: View {
                         Button("Back") { withAnimation { page -= 1 } }
                     }
                     Spacer()
-                    if page < 2 {
+                    if page < 4 {
                         Button("Next") { withAnimation { page += 1 } }
                     } else {
                         Button("Get Started") {

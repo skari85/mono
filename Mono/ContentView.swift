@@ -310,6 +310,13 @@ struct ContentView: View {
     @State private var suggestionUseContext: Bool = true
     @State private var lastSuggestion: String = ""
 
+    // Jump-to-bottom UI
+    @State private var shouldShowJumpButton: Bool = false
+
+    private var sortedMessages: [ChatMessage] {
+        dataManager.chatMessages.sorted { $0.timestamp < $1.timestamp }
+    }
+
 
     init() {
         // Initialize with the shared data manager
@@ -320,176 +327,95 @@ struct ContentView: View {
     var body: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
-                // Top Bar - Analog Mono Header
-                HStack {
-                    // Mono Brand with analog feel
-                    HStack(spacing: 8) {
-                        Text("M")
-                            .organicFont(.largeTitle)
-                            .fontWeight(.bold)
-                            .foregroundColor(.cassetteTextDark)
-                            .organicShadow()
-                        Text("o")
-                            .organicFont(.largeTitle)
-                            .fontWeight(.medium)
-                            .foregroundColor(.cassetteOrange)
-                            .organicShadow()
-                        Text("n")
-                            .organicFont(.largeTitle)
-                            .fontWeight(.bold)
-                            .foregroundColor(.cassetteTextDark)
-                            .organicShadow()
-                        Text("o")
-                            .organicFont(.largeTitle)
-                            .fontWeight(.medium)
-                            .foregroundColor(.cassetteTeal)
-                            .organicShadow()
+                // Top Bar - Compact Header (slightly larger, with settings)
+                HStack(alignment: .center, spacing: 8) {
+                    // Mono logo
+                    HStack(spacing: 2) {
+                        Text("M").organicFont(.headline).fontWeight(.semibold).foregroundColor(.cassetteTextDark)
+                        Text("o").organicFont(.headline).foregroundColor(.cassetteOrange)
+                        Text("n").organicFont(.headline).foregroundColor(.cassetteTextDark)
+                        Text("o").organicFont(.headline).foregroundColor(.cassetteTeal)
                     }
-                    .scaleEffect(viewModel.isLoading ? 0.98 : 1.0)
-                    .animation(.easeInOut(duration: 0.3), value: viewModel.isLoading)
-
-                    Spacer()
-
-                    // Mode indicator (small, subtle)
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            cyclePersonalityMode()
-                        }
-                    }) {
-                        Text(viewModel.currentMode.rawValue.lowercased())
-                            .organicFont(settingsManager.fontSize.captionFont)
-                            .fontWeight(.medium)
-                            .foregroundColor(.cassetteTextMedium)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
+                    // New Chat (simple)
+                    Button(action: { dataManager.newConversation() }) {
+                        Label("New Chat", systemImage: "plus")
+                            .font(.subheadline)
+                            .foregroundColor(.cassetteTextDark)
+                            .padding(6)
                             .background(
-                                HandDrawnRoundedRectangle(cornerRadius: 8, roughness: 2.0)
-                                    .fill(Color.cassetteWarmGray.opacity(0.6))
+                                HandDrawnCircle(roughness: 2.0)
+                                    .fill(Color.cassetteBeige)
+                                    .opacity(0.9)
                             )
                     }
 
-                    HStack(spacing: 12) {
-                        // Save as Memory Button removed (cassette feature deprecated)
-
-
-                        // Settings Button
-                        Button(action: { showingSettings = true }) {
-                            Image(systemName: "ellipsis")
-                                .font(.title2)
-                                .foregroundColor(.cassetteTextDark)
-                                .padding(8)
-                                .background(
-                                    HandDrawnCircle(roughness: 2.5)
-                                        .fill(Color.cassetteBeige)
-                                        .opacity(0.9)
-                                )
-                        }
+                    Spacer()
+                    // Mode label (tap to cycle)
+                    Button(action: { withAnimation(.easeInOut(duration: 0.3)) { cyclePersonalityMode() } }) {
+                        Label(viewModel.currentMode.rawValue.lowercased(), systemImage: "brain.head.profile")
+                            .font(.subheadline)
+                            .foregroundColor(.cassetteTextMedium)
+                    }
+                    // Settings (compact)
+                    Button(action: { showingSettings = true }) {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.cassetteTextDark)
+                            .padding(6)
+                            .background(
+                                HandDrawnCircle(roughness: 2.0)
+                                    .fill(Color.cassetteBeige)
+                                    .opacity(0.9)
+                            )
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
-                .background(
-                    Color.cassetteCream
-                        .shadow(color: .cassetteBrown.opacity(0.15), radius: 3, x: 0, y: 2)
-                )
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .frame(height: 46)
+                .background(Color.cassetteCream)
 
-                // Wobbly divider
-                WobblyLine(roughness: 2.0)
-                    .stroke(Color.cassetteBrown.opacity(0.3), lineWidth: 2)
-                    .frame(height: 4)
-                    .padding(.horizontal, 8)
+
+
+
 
                 // Chat Messages
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 16) {
-                            // Welcome message if no messages
-                            if dataManager.chatMessages.isEmpty {
-                                VStack(spacing: 20) {
-                                    Text("👋 Welcome to Mono")
-                                        .organicFont(settingsManager.fontSize.titleFont)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.cassetteTextDark)
-                                        .organicShadow()
+                ChatMessagesPane(
+                    messages: sortedMessages,
+                    isLoading: viewModel.isLoading,
+                    loadingLabel: viewModel.loadingLabel,
+                    settingsManager: settingsManager,
+                    isValid: isValid,
+                    handleMessageAction: { action, message in
+                        handleMessageAction(action, for: message)
+                    },
+                    shouldShowJumpButton: $shouldShowJumpButton,
+                    keyboardHeight: keyboardHeight
+                )
 
-                                    Text("Your minimalist AI companion. Tap the + button for quick prompts, or just start typing.")
-                                        .font(settingsManager.fontSize.bodyFont)
-                                        .foregroundColor(.cassetteTextMedium)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 40)
-                                        .lineSpacing(2)
-
-                                    // Hand-drawn style tip box
-                                    VStack(spacing: 8) {
-                                        Text("💡 Tip: Tap the mode name at the top to switch personalities")
-                                            .font(settingsManager.fontSize.captionFont)
-                                            .foregroundColor(.cassetteTeal)
-                                            .padding(.horizontal, 20)
-                                            .padding(.vertical, 8)
-                                    }
-                                    .background(
-                                        HandDrawnRoundedRectangle(cornerRadius: 8, roughness: 4.0)
-                                            .fill(Color.cassetteTeal.opacity(0.15))
-                                    )
-                                }
-                                .padding(.top, 80)
-                                .padding(.bottom, 40)
-                            }
-
-                            ForEach(dataManager.chatMessages.sorted(by: { $0.timestamp < $1.timestamp })) { message in
-                                if isValid(message.text) {
-                                    MessageBubble(message: message, onAction: { action in
-                                        handleMessageAction(action, for: message)
-                                    }, settingsManager: settingsManager)
-                                    .id(message.id)
-                                }
-                            }
-
-                            if viewModel.isLoading {
-                                HStack {
-                                    Spacer()
-                                    VStack(spacing: 8) {
-                                        ProgressView()
-                                            .scaleEffect(0.8)
-                                        Text(viewModel.loadingLabel.isEmpty ? "Thinking..." : viewModel.loadingLabel)
-                                            .font(.caption)
-                                            .foregroundColor(.cassetteTextMedium)
-                                    }
-                                    .padding()
-                                    .background(
-                                        HandDrawnRoundedRectangle(cornerRadius: 12, roughness: 3.0)
-                                            .fill(Color.cassetteWarmGray.opacity(0.8))
-                                    )
-                                    Spacer()
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 12)
-                        .padding(.bottom, keyboardHeight > 0 ? 20 : 0)
-                    }
-                    .onChange(of: dataManager.chatMessages.count) { _, _ in
-                        if let last = dataManager.chatMessages.last {
-                            withAnimation(.easeOut(duration: 0.3)) {
-                                proxy.scrollTo(last.id, anchor: .bottom)
-                            }
-                        }
+                // Input Bar pinned with safe area inset to ensure visibility above keyboard/home indicator
+                .safeAreaInset(edge: .bottom) {
+                    VStack(spacing: 0) {
+                        // subtle top divider
+                        Rectangle()
+                            .fill(Color.black.opacity(0.06))
+                            .frame(height: 0.5)
+                        InputBar(
+                            input: $input,
+                            isInputFocused: $isInputFocused,
+                            viewModel: viewModel,
+                            handwritingMode: $handwritingMode,
+                            showingVoiceRecording: $showingVoiceRecording,
+                            suggestionTopN: $suggestionTopN,
+                            suggestionUseContext: $suggestionUseContext,
+                            lastSuggestion: $lastSuggestion,
+                            suggestFromInput: { await suggestFromInput() },
+                            insertLastSuggestionIntoChat: { await insertLastSuggestionIntoChat() },
+                            onShowQuickPrompts: { showingQuickPrompts = true }
+                        )
+                        .background(Color.cassetteCream)
+                        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: -2)
                     }
                 }
-                // Input Bar extracted to reduce compiler workload
-                InputBar(
-                    input: $input,
-                    isInputFocused: $isInputFocused,
-                    viewModel: viewModel,
-                    handwritingMode: $handwritingMode,
-                    showingVoiceRecording: $showingVoiceRecording,
-                    suggestionTopN: $suggestionTopN,
-                    suggestionUseContext: $suggestionUseContext,
-                    lastSuggestion: $lastSuggestion,
-                    suggestFromInput: { await suggestFromInput() },
-                    insertLastSuggestionIntoChat: { await insertLastSuggestionIntoChat() },
-                    onShowQuickPrompts: { showingQuickPrompts = true }
-                )
                 // Input bar moved into InputBar view
             }
             .background(
@@ -556,12 +482,6 @@ struct ContentView: View {
             // Setup keyboard notifications
             setupKeyboardNotifications()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .summarizeSendToChat)) { note in
-            if let text = note.object as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                let aiMessage = ChatMessage(text: text, isUser: false)
-                dataManager.addChatMessage(aiMessage)
-            }
-        }
         .onDisappear {
             // Remove keyboard notifications
             NotificationCenter.default.removeObserver(self)
@@ -621,6 +541,118 @@ struct ContentView: View {
             await viewModel.sendMessage(message, handwritingMode: handwritingMode)
         }
     }
+
+// MARK: - Extracted messages pane to reduce type-checker load
+struct ChatMessagesPane: View {
+    let messages: [ChatMessage]
+    let isLoading: Bool
+    let loadingLabel: String
+    let settingsManager: SettingsManager
+    let isValid: (String) -> Bool
+    let handleMessageAction: (MessageAction, ChatMessage) -> Void
+    @Binding var shouldShowJumpButton: Bool
+    let keyboardHeight: CGFloat
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ZStack(alignment: .bottomTrailing) {
+                ScrollView {
+                    LazyVStack(spacing: 16) {
+                        if messages.isEmpty {
+                            VStack(spacing: 20) {
+                                Text("👋 Welcome to Mono")
+                                    .organicFont(settingsManager.fontSize.titleFont)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.cassetteTextDark)
+                                    .organicShadow()
+                                Text("Your minimalist AI companion. Tap the + button for quick prompts, or just start typing.")
+                                    .font(settingsManager.fontSize.bodyFont)
+                                    .foregroundColor(.cassetteTextMedium)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 40)
+                                    .lineSpacing(2)
+                                VStack(spacing: 8) {
+                                    Text("💡 Tip: Tap the mode name at the top to switch personalities")
+                                        .font(settingsManager.fontSize.captionFont)
+                                        .foregroundColor(.cassetteTeal)
+                                        .padding(.horizontal, 20)
+                                        .padding(.vertical, 8)
+                                }
+                                .background(
+                                    HandDrawnRoundedRectangle(cornerRadius: 8, roughness: 4.0)
+                                        .fill(Color.cassetteTeal.opacity(0.15))
+                                )
+                            }
+                            .padding(.top, 80)
+                            .padding(.bottom, 40)
+                        }
+
+                        ForEach(messages) { message in
+                            if isValid(message.text) {
+                                MessageBubble(message: message, onAction: { action in
+                                    handleMessageAction(action, message)
+                                }, settingsManager: settingsManager)
+                                .id(message.id)
+                            }
+                        }
+
+                        if isLoading {
+                            HStack {
+                                Spacer()
+                                VStack(spacing: 8) {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text(loadingLabel.isEmpty ? "Thinking..." : loadingLabel)
+                                        .font(.caption)
+                                        .foregroundColor(.cassetteTextMedium)
+                                }
+                                .padding()
+                                .background(
+                                    HandDrawnRoundedRectangle(cornerRadius: 12, roughness: 3.0)
+                                        .fill(Color.cassetteWarmGray.opacity(0.8))
+                                )
+                                Spacer()
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 4)
+                .padding(.bottom, keyboardHeight > 0 ? 20 : 0)
+
+                // Floating jump-to-bottom arrow
+                Button(action: {
+                    NotificationCenter.default.post(name: .scrollChatToBottom, object: nil)
+                }) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundColor(.cassetteTeal)
+                        .shadow(radius: 2)
+                }
+                .padding(.trailing, 16)
+                .padding(.bottom, 24)
+                .opacity(shouldShowJumpButton ? 1 : 0)
+                .animation(.easeInOut(duration: 0.2), value: shouldShowJumpButton)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .scrollChatToBottom)) { _ in
+                if let last = messages.last {
+                    withAnimation(.spring()) { proxy.scrollTo(last.id, anchor: .bottom) }
+                }
+            }
+            .onChange(of: messages.count) { _, _ in
+                if let last = messages.last {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        proxy.scrollTo(last.id, anchor: .bottom)
+                    }
+                }
+            }
+            .onTapGesture {
+                shouldShowJumpButton = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { shouldShowJumpButton = true }
+            }
+        }
+    }
+}
 
     private func suggestFromInput() async {
         let q = input.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -689,8 +721,6 @@ struct ContentView: View {
         }
     }
 
-        }
-
     func isValid(_ text: String) -> Bool {
         let lower = text.lowercased()
         return !text.isEmpty && !lower.contains("nan") && !lower.contains("infinity")
@@ -698,6 +728,8 @@ struct ContentView: View {
 
 
 // MARK: - Message Bubble
+}
+
 struct MessageBubble: View {
     let message: ChatMessage
     let onAction: (MessageAction) -> Void
@@ -762,6 +794,20 @@ struct MessageBubble: View {
                             )
                             .foregroundColor(message.isUser ? Color(white: 0.2) : Color.black)
                             .frame(maxWidth: UIScreen.main.bounds.width * 0.75, alignment: message.isUser ? .trailing : .leading)
+                            .contextMenu {
+                                if !message.isUser {
+                                    Button {
+                                        let t = Thought(title: message.text.components(separatedBy: "\n").first ?? "Saved Answer",
+                                                        tags: ["chat"],
+                                                        keyPoints: [message.text],
+                                                        actionItems: [],
+                                                        keyInsights: [])
+                                        DataManager.shared.addThought(t)
+                                    } label: {
+                                        Label("Save to Thoughts", systemImage: "tray.and.arrow.down.fill")
+                                    }
+                                }
+                            }
                     }
 
                 if !message.isUser { Spacer() }
