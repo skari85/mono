@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- App identity -->
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleDisplayName</key>
+    <string>Mono</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+
+    <!-- Privacy Usage Descriptions -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Mono uses the microphone to record voice messages and audio memories.</string>
+
+    <!-- Face ID/Touch ID Permission -->
+    <key>NSFaceIDUsageDescription</key>
+    <string>Mono uses Face ID to securely protect your recordings and provide quick, convenient access to the app.</string>
+
+    <!-- Background Audio Capability -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>audio</string>
+    </array>
+
+    <!-- Required Device Capabilities -->
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>microphone</string>
+    </array>
+
+    <!-- Launch Screen Configuration -->
+    <key>UILaunchScreen</key>
+    <dict/>
+
+    <!-- Status Bar Style -->
+    <key>UIStatusBarStyle</key>
+    <string>UIStatusBarStyleDefault</string>
+    <key>UIApplicationSupportsIndirectInputEvents</key>
+    <true/>
+
+    <!-- Supported Interface Orientations -->
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+
+    <!-- iPhone Specific Orientations -->
+    <key>UISupportedInterfaceOrientations~iphone</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+
+    <!-- iPad Specific Orientations -->
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+
+    <!-- App Transport Security -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <false/>
+    </dict>
+
+    <!-- Minimum iOS Version -->
+    <key>LSMinimumSystemVersion</key>
+    <string>15.0</string>
+
+    <!-- App Category -->
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.music</string>
+
+    <!-- iTunes File Sharing (Optional - allows users to access recordings via iTunes) -->
+    <key>UIFileSharingEnabled</key>
+    <true/>
+    <key>LSSupportsOpeningDocumentsInPlace</key>
+    <true/>
+
+    <!-- Scene Configuration for SwiftUI -->
+    <key>UIApplicationSceneManifest</key>
+    <dict>
+        <key>UIApplicationSupportsMultipleScenes</key>
+        <false/>
+        <key>UISceneConfigurations</key>
+        <dict>
+            <key>UIWindowSceneSessionRoleApplication</key>
+            <array>
+                <dict>
+                    <key>UISceneConfigurationName</key>
+                    <string>Default Configuration</string>
+                </dict>
+            </array>
+        </dict>
+    </dict>
+
+    <!-- Additional privacy descriptions for comprehensive coverage -->
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Mono may use speech recognition to enhance your voice recording experience and improve AI conversations.</string>
+
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Mono connects to AI services to provide intelligent responses to your voice messages and conversations.</string>
+
+    <!-- Camera usage for potential future features -->
+    <key>NSCameraUsageDescription</key>
+    <string>Mono may request camera access in future updates to enhance memory creation with visual elements alongside audio recordings.</string>
+
+    <!-- Photo library access for memory attachments -->
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Mono may access your photo library to attach images to your audio memories and enhance the digital cassette tape experience.</string>
+
+    <!-- Location services for contextual memories -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Mono may use your location to add contextual information to your audio memories, helping you remember where important conversations or thoughts were recorded.</string>
+
+</dict>
+</plist>

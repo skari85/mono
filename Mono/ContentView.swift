@@ -28,15 +28,17 @@ extension Color {
 // Analog texture overlay for that vintage cassette feel
 struct PaperTexture: View {
     let opacity: Double
+    let seed: UInt64
 
     var body: some View {
         Canvas { context, size in
+            var rng = SeededRandomNumberGenerator(seed: seed)
             // Create subtle paper grain texture
             for _ in 0..<Int(size.width * size.height / 100) {
-                let x = Double.random(in: 0...size.width)
-                let y = Double.random(in: 0...size.height)
-                let brightness = Double.random(in: 0.8...1.2)
-                let alpha = Double.random(in: 0.1...0.3) * opacity
+                let x = Double.random(in: 0...size.width, using: &rng)
+                let y = Double.random(in: 0...size.height, using: &rng)
+                let brightness = Double.random(in: 0.8...1.2, using: &rng)
+                let alpha = Double.random(in: 0.1...0.3, using: &rng) * opacity
 
                 context.fill(
                     Path(ellipseIn: CGRect(x: x, y: y, width: 1, height: 1)),
@@ -46,9 +48,9 @@ struct PaperTexture: View {
 
             // Add some darker grain for depth
             for _ in 0..<Int(size.width * size.height / 200) {
-                let x = Double.random(in: 0...size.width)
-                let y = Double.random(in: 0...size.height)
-                let alpha = Double.random(in: 0.05...0.15) * opacity
+                let x = Double.random(in: 0...size.width, using: &rng)
+                let y = Double.random(in: 0...size.height, using: &rng)
+                let alpha = Double.random(in: 0.05...0.15, using: &rng) * opacity
 
                 context.fill(
                     Path(ellipseIn: CGRect(x: x, y: y, width: 1, height: 1)),
@@ -291,24 +293,30 @@ struct WobblyLine: Shape {
 }
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var messages: [ChatMessage]
+    @EnvironmentObject private var dataManager: DataManager
     @StateObject private var viewModel: ChatViewModel
+    @EnvironmentObject private var settingsManager: SettingsManager
 
     @State private var input = ""
+
     @State private var showingQuickPrompts = false
     @State private var showingSettings = false
-    @State private var showingCassetteCollection = false
+    @State private var showingVoiceRecording = false
     @State private var selectedMessage: ChatMessage?
     @State private var keyboardHeight: CGFloat = 0
     @State private var handwritingMode = false
     @FocusState private var isInputFocused: Bool
+    @State private var suggestionTopN: Int = 5
+    @State private var suggestionUseContext: Bool = true
+    @State private var lastSuggestion: String = ""
+
 
     init() {
         // Initialize with the shared data manager
-        _viewModel = StateObject(wrappedValue: ChatViewModel(context: DataManager.shared.modelContainer.mainContext))
+        _viewModel = StateObject(wrappedValue: ChatViewModel(dataManager: DataManager.shared))
     }
-    
+
+
     var body: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
@@ -349,7 +357,7 @@ struct ContentView: View {
                         }
                     }) {
                         Text(viewModel.currentMode.rawValue.lowercased())
-                            .organicFont(.caption)
+                            .organicFont(settingsManager.fontSize.captionFont)
                             .fontWeight(.medium)
                             .foregroundColor(.cassetteTextMedium)
                             .padding(.horizontal, 8)
@@ -361,18 +369,8 @@ struct ContentView: View {
                     }
 
                     HStack(spacing: 12) {
-                        // Cassette Collection Button
-                        Button(action: { showingCassetteCollection = true }) {
-                            Image(systemName: "opticaldisc")
-                                .font(.title2)
-                                .foregroundColor(.cassetteTextDark)
-                                .padding(8)
-                                .background(
-                                    HandDrawnCircle(roughness: 2.5)
-                                        .fill(Color.cassetteBeige)
-                                        .opacity(0.9)
-                                )
-                        }
+                        // Save as Memory Button removed (cassette feature deprecated)
+
 
                         // Settings Button
                         Button(action: { showingSettings = true }) {
@@ -394,28 +392,28 @@ struct ContentView: View {
                     Color.cassetteCream
                         .shadow(color: .cassetteBrown.opacity(0.15), radius: 3, x: 0, y: 2)
                 )
-                
+
                 // Wobbly divider
                 WobblyLine(roughness: 2.0)
                     .stroke(Color.cassetteBrown.opacity(0.3), lineWidth: 2)
                     .frame(height: 4)
                     .padding(.horizontal, 8)
-                
+
                 // Chat Messages
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 16) {
                             // Welcome message if no messages
-                            if messages.isEmpty {
+                            if dataManager.chatMessages.isEmpty {
                                 VStack(spacing: 20) {
                                     Text("👋 Welcome to Mono")
-                                        .organicFont(.title)
+                                        .organicFont(settingsManager.fontSize.titleFont)
                                         .fontWeight(.bold)
                                         .foregroundColor(.cassetteTextDark)
                                         .organicShadow()
 
                                     Text("Your minimalist AI companion. Tap the + button for quick prompts, or just start typing.")
-                                        .font(.body)
+                                        .font(settingsManager.fontSize.bodyFont)
                                         .foregroundColor(.cassetteTextMedium)
                                         .multilineTextAlignment(.center)
                                         .padding(.horizontal, 40)
@@ -424,7 +422,7 @@ struct ContentView: View {
                                     // Hand-drawn style tip box
                                     VStack(spacing: 8) {
                                         Text("💡 Tip: Tap the mode name at the top to switch personalities")
-                                            .font(.caption)
+                                            .font(settingsManager.fontSize.captionFont)
                                             .foregroundColor(.cassetteTeal)
                                             .padding(.horizontal, 20)
                                             .padding(.vertical, 8)
@@ -437,23 +435,23 @@ struct ContentView: View {
                                 .padding(.top, 80)
                                 .padding(.bottom, 40)
                             }
-                            
-                            ForEach(messages.sorted(by: { $0.timestamp < $1.timestamp })) { message in
+
+                            ForEach(dataManager.chatMessages.sorted(by: { $0.timestamp < $1.timestamp })) { message in
                                 if isValid(message.text) {
                                     MessageBubble(message: message, onAction: { action in
                                         handleMessageAction(action, for: message)
-                                    })
+                                    }, settingsManager: settingsManager)
                                     .id(message.id)
                                 }
                             }
-                            
+
                             if viewModel.isLoading {
                                 HStack {
                                     Spacer()
                                     VStack(spacing: 8) {
                                         ProgressView()
                                             .scaleEffect(0.8)
-                                        Text("Thinking...")
+                                        Text(viewModel.loadingLabel.isEmpty ? "Thinking..." : viewModel.loadingLabel)
                                             .font(.caption)
                                             .foregroundColor(.cassetteTextMedium)
                                     }
@@ -470,158 +468,107 @@ struct ContentView: View {
                         .padding(.top, 12)
                         .padding(.bottom, keyboardHeight > 0 ? 20 : 0)
                     }
-                    .onChange(of: messages.count) {
-                        if let last = messages.last {
+                    .onChange(of: dataManager.chatMessages.count) { _, _ in
+                        if let last = dataManager.chatMessages.last {
                             withAnimation(.easeOut(duration: 0.3)) {
                                 proxy.scrollTo(last.id, anchor: .bottom)
                             }
                         }
                     }
                 }
-                
-                // Bottom Input Area
-                VStack(spacing: 0) {
-                    HStack(spacing: 16) {
-                        // Quick Prompts Button
-                        Button(action: { showingQuickPrompts = true }) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.title2)
-                                .foregroundColor(.cassetteOrange)
-                                .padding(8)
-                                .background(
-                                    HandDrawnCircle(roughness: 3.0)
-                                        .fill(Color.cassetteOrange.opacity(0.2))
-                                )
-                        }
-                        
-                        // Input Field
-                        HStack(spacing: 8) {
-                            TextField(handwritingMode ? "Ask anything... (handwritten response)" : "Ask anything...", text: $input, axis: .vertical)
-                                .textFieldStyle(.plain)
-                                .lineLimit(1...4)
-                                .submitLabel(.send)
-                                .font(.body)
-                                .foregroundColor(.cassetteTextDark)
-                                .focused($isInputFocused)
-                                .autocorrectionDisabled(false)
-                                .textInputAutocapitalization(.sentences)
-                                .onSubmit {
-                                    guard !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                                    Task {
-                                        await sendMessage()
-                                    }
-                                }
-
-                            Button(action: {
-                                Task {
-                                    await sendMessage()
-                                    // Dismiss keyboard after sending
-                                    isInputFocused = false
-                                }
-                            }) {
-                                Image(systemName: "arrow.up.circle.fill")
-                                    .font(.title2)
-                                    .foregroundColor(input.trimmingCharacters(in: .whitespaces).isEmpty ? .cassetteTextMedium : .cassetteOrange)
-                            }
-                            .disabled(input.trimmingCharacters(in: .whitespaces).isEmpty)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(
-                            HandDrawnRoundedRectangle(cornerRadius: 24, roughness: 4.0)
-                                .fill(Color.cassetteBeige)
-                                .shadow(color: .cassetteBrown.opacity(0.15), radius: 4, x: 0, y: 3)
-                        )
-                        
-                        // Mic Button
-                        // Handwriting Mode Toggle
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                handwritingMode.toggle()
-                            }
-                            // Haptic feedback
-                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                            impactFeedback.impactOccurred()
-                        }) {
-                            VStack(spacing: 2) {
-                                Image(systemName: handwritingMode ? "pencil.circle.fill" : "pencil.circle")
-                                    .font(.title2)
-                                    .foregroundColor(handwritingMode ? .white : .cassetteTextMedium)
-
-                                if handwritingMode {
-                                    Text("ON")
-                                        .font(.system(size: 8, weight: .bold))
-                                        .foregroundColor(.white)
-                                }
-                            }
-                            .padding(8)
-                            .background(
-                                HandDrawnCircle(roughness: 3.0)
-                                    .fill(handwritingMode ? Color.cassetteTeal : Color.cassetteBeige)
-                            )
-                        }
-
-                        Button(action: {
-                            // TODO: Implement voice input
-                        }) {
-                            Image(systemName: "mic.circle.fill")
-                                .font(.title2)
-                                .foregroundColor(.cassetteRed)
-                                .padding(8)
-                                .background(
-                                    HandDrawnCircle(roughness: 3.0)
-                                        .fill(Color.cassetteRed.opacity(0.2))
-                                )
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 16)
-                    .background(
-                        Color.cassetteCream
-                            .shadow(color: .cassetteBrown.opacity(0.15), radius: 3, x: 0, y: -2)
-                    )
-                }
-                .background(Color.cassetteCream)
+                // Input Bar extracted to reduce compiler workload
+                InputBar(
+                    input: $input,
+                    isInputFocused: $isInputFocused,
+                    viewModel: viewModel,
+                    handwritingMode: $handwritingMode,
+                    showingVoiceRecording: $showingVoiceRecording,
+                    suggestionTopN: $suggestionTopN,
+                    suggestionUseContext: $suggestionUseContext,
+                    lastSuggestion: $lastSuggestion,
+                    suggestFromInput: { await suggestFromInput() },
+                    insertLastSuggestionIntoChat: { await insertLastSuggestionIntoChat() },
+                    onShowQuickPrompts: { showingQuickPrompts = true }
+                )
+                // Input bar moved into InputBar view
             }
             .background(
                 ZStack {
+                    // Inline toast for errors
+                    if let err = viewModel.lastError {
+                        VStack {
+                            Spacer()
+                            Toast(message: err, isError: true, actionTitle: "Retry") {
+                                withAnimation { viewModel.lastError = nil }
+                                Task { await viewModel.retryLast() }
+                            }
+                        }
+                        .animation(.spring(), value: viewModel.lastError)
+                    }
+
                     Color.cassetteWarmGray.opacity(0.3)
-                    PaperTexture(opacity: 0.4)
+                    PaperTexture(opacity: 0.4, seed: 0xC0FFEECAFE)
                 }
             )
         }
+        .preferredColorScheme(settingsManager.appearanceMode.colorScheme)
         .sheet(isPresented: $showingQuickPrompts) {
             QuickPromptsView { prompt in
                 input = prompt
                 showingQuickPrompts = false
                 Task {
                     await sendMessage()
+
                     isInputFocused = false
                 }
             }
+            .preferredColorScheme(settingsManager.appearanceMode.colorScheme)
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
+                .preferredColorScheme(settingsManager.appearanceMode.colorScheme)
         }
-        .sheet(isPresented: $showingCassetteCollection) {
-            CassetteCollectionView()
+        .sheet(isPresented: $showingVoiceRecording) {
+            VoiceRecordingView { recordingId in
+                // Create a voice message
+                let voiceMessage = ChatMessage(
+                    text: "🎤 Voice Message",
+                    isUser: true,
+                    hasAudioRecording: true,
+                    recordingId: recordingId
+                )
+
+                // Add to data manager
+                dataManager.addChatMessage(voiceMessage)
+
+                // Send to AI for response
+                Task {
+                    await viewModel.sendVoiceMessage(voiceMessage)
+                }
+            }
+            .preferredColorScheme(settingsManager.appearanceMode.colorScheme)
         }
         .onAppear {
             if UserDefaults.standard.string(forKey: "groq_api_key") == nil {
                 showingSettings = true
             }
-            // Update the viewModel with the proper modelContext
-            viewModel.modelContext = modelContext
-            
+            // App initialization complete
             // Setup keyboard notifications
             setupKeyboardNotifications()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .summarizeSendToChat)) { note in
+            if let text = note.object as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let aiMessage = ChatMessage(text: text, isUser: false)
+                dataManager.addChatMessage(aiMessage)
+            }
         }
         .onDisappear {
             // Remove keyboard notifications
             NotificationCenter.default.removeObserver(self)
         }
     }
-    
+
+
     private func setupKeyboardNotifications() {
         NotificationCenter.default.addObserver(
             forName: UIResponder.keyboardWillShowNotification,
@@ -658,7 +605,7 @@ struct ContentView: View {
             }
         }
     }
-    
+
     private func sendMessage() async {
         let message = input.trimmingCharacters(in: .whitespacesAndNewlines)
         if !message.isEmpty {
@@ -675,22 +622,43 @@ struct ContentView: View {
         }
     }
 
+    private func suggestFromInput() async {
+        let q = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return }
+        await MainActor.run { isInputFocused = false }
+        do {
+            let hints = suggestionUseContext ? buildContextHints() : nil
+            let suggestion = try await SuggestionService.shared.suggest(query: q, topN: suggestionTopN, contextHints: hints)
+            await MainActor.run {
+                lastSuggestion = suggestion
+                let aiMessage = ChatMessage(text: suggestion.isEmpty ? "[No suggestions]" : suggestion, isUser: false)
+                dataManager.addChatMessage(aiMessage)
+            }
+        } catch {
+            await MainActor.run {
+                let errMsg = ChatMessage(text: "[Suggestion failed]", isUser: false)
+                dataManager.addChatMessage(errMsg)
+                viewModel.lastError = "Suggestion error. Check API key."
+            }
+        }
+    }
+
     private func hideKeyboard() {
         isInputFocused = false
     }
-    
+
     private func cyclePersonalityMode() {
         let modes = PersonalityMode.allCases
         if let currentIndex = modes.firstIndex(of: viewModel.currentMode) {
             let nextIndex = (currentIndex + 1) % modes.count
             viewModel.currentMode = modes[nextIndex]
-            
+
             // Haptic feedback
             let impactFeedback = UIImpactFeedbackGenerator(style: .light)
             impactFeedback.impactOccurred()
         }
     }
-    
+
     private func handleMessageAction(_ action: MessageAction, for message: ChatMessage) {
         switch action {
         case .regenerate:
@@ -698,46 +666,91 @@ struct ContentView: View {
                 await viewModel.sendMessage(message.text)
             }
         case .makeShorter:
-            // TODO: Implement make shorter
             break
         case .expandIdea:
-            // TODO: Implement expand idea
             break
         case .surpriseMe:
-            // TODO: Implement surprise me
             break
         }
     }
+
+    private func buildContextHints() -> String {
+        // Use last few chat messages as plain text hints
+        let recent = dataManager.chatMessages.suffix(6)
+        return recent.map { ($0.isUser ? "User: " : "Mono: ") + $0.text }.joined(separator: "\n")
+    }
+
+    private func insertLastSuggestionIntoChat() async {
+        let text = lastSuggestion.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        await MainActor.run {
+            let aiMessage = ChatMessage(text: text, isUser: false)
+            dataManager.addChatMessage(aiMessage)
+        }
+    }
+
+        }
 
     func isValid(_ text: String) -> Bool {
         let lower = text.lowercased()
         return !text.isEmpty && !lower.contains("nan") && !lower.contains("infinity")
     }
-}
+
 
 // MARK: - Message Bubble
 struct MessageBubble: View {
     let message: ChatMessage
     let onAction: (MessageAction) -> Void
-    
+    let settingsManager: SettingsManager
+
     @State private var showingActions = false
-    
+    @StateObject private var audioManager = AudioManager.shared
+
     var body: some View {
         VStack(alignment: message.isUser ? .trailing : .leading, spacing: 12) {
             HStack {
+
                 if message.isUser { Spacer() }
-                
-                Group {
-                    if message.isHandwritten && !message.isUser {
-                        HandwrittenText(
-                            text: message.text,
-                            style: message.handwritingStyleEnum,
-                            animate: false
+                    if message.hasAudioRecording {
+                        VStack(spacing: 8) {
+                            HStack(spacing: 12) {
+                                Button(action: {
+                                    if audioManager.isPlaying { audioManager.stopPlayback() }
+                                    else { Task { await audioManager.playAudio(for: message.id) } }
+                                }) {
+                                    Image(systemName: audioManager.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                                        .font(.title2)
+                                        .foregroundColor(.cassetteOrange)
+                                }
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(message.text)
+                                        .font(settingsManager.fontSize.bodyFont)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(message.isUser ? Color(white: 0.2) : Color.black)
+                                    HStack(spacing: 2) {
+                                        ForEach(0..<20, id: \.self) { _ in
+                                            Rectangle().fill(Color.cassetteOrange.opacity(0.6))
+                                                .frame(width: 2, height: CGFloat.random(in: 4...16))
+                                        }
+                                    }
+                                }
+                                Spacer()
+                            }
+                        }
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 14)
+                        .background(
+                            HandDrawnRoundedRectangle(cornerRadius: 20, roughness: 5.0)
+                                .fill(message.isUser ? Color.cassetteOrange.opacity(0.9) : Color.white.opacity(0.95))
+                                .shadow(color: .cassetteBrown.opacity(0.2), radius: 6, x: 0, y: 4)
                         )
-                        .frame(maxWidth: UIScreen.main.bounds.width * 0.75, alignment: .leading)
+                        .frame(maxWidth: UIScreen.main.bounds.width * 0.75, alignment: message.isUser ? .trailing : .leading)
+                    } else if message.isHandwritten && !message.isUser {
+                        HandwrittenText(text: message.text, style: message.handwritingStyleEnum, animate: false)
+                            .frame(maxWidth: UIScreen.main.bounds.width * 0.75, alignment: .leading)
                     } else {
                         Text(message.text)
-                            .font(.body)
+                            .font(settingsManager.fontSize.bodyFont)
                             .fontWeight(.medium)
                             .lineSpacing(2)
                             .padding(.horizontal, 18)
@@ -747,21 +760,13 @@ struct MessageBubble: View {
                                     .fill(message.isUser ? Color.cassetteOrange.opacity(0.9) : Color.white.opacity(0.95))
                                     .shadow(color: .cassetteBrown.opacity(0.2), radius: 6, x: 0, y: 4)
                             )
-                            .foregroundColor(message.isUser ? Color.white : Color.black)
+                            .foregroundColor(message.isUser ? Color(white: 0.2) : Color.black)
                             .frame(maxWidth: UIScreen.main.bounds.width * 0.75, alignment: message.isUser ? .trailing : .leading)
                     }
-                }
-                    .onTapGesture {
-                        if !message.isUser {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                showingActions.toggle()
-                            }
-                        }
-                    }
-                
+
                 if !message.isUser { Spacer() }
             }
-            
+
             if !message.isUser && showingActions {
                 HStack(spacing: 20) {
                     ActionButton(title: "🔁", action: "Regenerate") {
@@ -795,7 +800,7 @@ struct ActionButton: View {
     let title: String
     let action: String
     let onTap: () -> Void
-    
+
     var body: some View {
         Button(action: onTap) {
             VStack(spacing: 4) {
@@ -820,7 +825,8 @@ struct ActionButton: View {
 struct QuickPromptsView: View {
     let onSelect: (String) -> Void
     @Environment(\.dismiss) private var dismiss
-    
+    @EnvironmentObject private var settingsManager: SettingsManager
+
     private let prompts = [
         "What am I missing?",
         "Write it tighter.",
@@ -831,20 +837,21 @@ struct QuickPromptsView: View {
         "Challenge my assumptions.",
         "Make this actionable."
     ]
-    
+
     var body: some View {
         NavigationView {
             VStack(spacing: 20) {
                 Text("Quick Prompts")
-                    .font(.title)
+                    .font(settingsManager.fontSize.titleFont)
                     .fontWeight(.bold)
+                    .foregroundColor(.cassetteTextDark)
                     .padding(.top)
-                
+
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 16) {
                     ForEach(prompts, id: \.self) { prompt in
                         Button(action: { onSelect(prompt) }) {
                             Text(prompt)
-                                .font(.body)
+                                .font(settingsManager.fontSize.quickPromptFont)
                                 .fontWeight(.semibold)
                                 .foregroundColor(.cassetteTextDark)
                                 .multilineTextAlignment(.leading)
@@ -860,7 +867,7 @@ struct QuickPromptsView: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                
+
                 Spacer()
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -876,46 +883,367 @@ struct QuickPromptsView: View {
 // MARK: - Settings View
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @State private var apiKey = ""
-    
+    @State private var showingResetAlert = false
+    @State private var showingAbout = false
+
+    @EnvironmentObject private var settingsManager: SettingsManager
+
     var body: some View {
         NavigationView {
-            Form {
-                Section("API Configuration") {
-                    SecureField("Groq API Key", text: $apiKey)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .onAppear {
-                            apiKey = UserDefaults.standard.string(forKey: "groq_api_key") ?? ""
+            List {
+                // API Configuration Section
+                Section {
+                    HStack {
+                        Image(systemName: "key.fill")
+                            .foregroundColor(.cassetteOrange)
+                            .frame(width: 24)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("API Configuration")
+                                .font(.headline)
+                                .foregroundColor(.cassetteTextDark)
+
+                            SecureField("Enter your Groq API key", text: $apiKey)
+                                .textFieldStyle(.plain)
+                                .foregroundColor(.cassetteTextMedium)
                         }
-                    
-                    Text("Get your API key from groq.com")
-                        .font(.caption)
+                    }
+                    .padding(.vertical, 4)
+
+                    Button(action: {
+                        if let url = URL(string: "https://groq.com") {
+                            openURL(url)
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "link")
+                                .foregroundColor(.cassetteTeal)
+                                .frame(width: 24)
+
+                            Text("Get API Key from Groq")
+                                .foregroundColor(.cassetteTeal)
+
+                            Spacer()
+
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption)
+                                .foregroundColor(.cassetteTeal)
+                        }
+                    }
+                } header: {
+                    Text("Configuration")
+                        .foregroundColor(.cassetteTextMedium)
+                } footer: {
+                    Text("Your API key is stored securely on your device and never shared.")
                         .foregroundColor(.cassetteTextMedium)
                 }
-                
-                Section("About") {
-                    HStack {
-                        Text("Version")
-                        Spacer()
-                        Text("1.0.0")
-                            .foregroundColor(.cassetteTextMedium)
+
+                // App Preferences Section
+                Section {
+                    NavigationLink(destination: AppearanceSettingsView()) {
+                        HStack {
+                            Image(systemName: "paintbrush.fill")
+                                .foregroundColor(.cassetteBlue)
+                                .frame(width: 24)
+
+                            Text("Appearance")
+                                .foregroundColor(.cassetteTextDark)
+                        }
                     }
+
+                    NavigationLink(destination: NotificationSettingsView()) {
+                        HStack {
+                            Image(systemName: "bell.fill")
+                                .foregroundColor(.cassetteRed)
+                                .frame(width: 24)
+
+                            Text("Notifications")
+                                .foregroundColor(.cassetteTextDark)
+                        }
+                    }
+
+                    NavigationLink(destination: ModelSettingsView()) {
+                        HStack {
+                            Image(systemName: "cpu.fill")
+                                .foregroundColor(.cassetteTeal)
+                                .frame(width: 24)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("AI Model")
+                                    .foregroundColor(.cassetteTextDark)
+                                Text(settingsManager.llmModel == "llama-3.1-70b" ? "Llama 3.1 70B (Quality)" : (settingsManager.llmModel == "llama-3.1-8b-instant" ? "Llama 3.1 8B (Instant)" : settingsManager.llmModel))
+                                    .font(.caption)
+                                    .foregroundColor(.cassetteTextMedium)
+                            }
+                        }
+                    }
+
+                    NavigationLink(destination: TranscriptionSettingsView()) {
+                        HStack {
+                            Image(systemName: "waveform.circle.fill")
+                                .foregroundColor(.cassetteOrange)
+                                .frame(width: 24)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Transcription")
+                                    .foregroundColor(.cassetteTextDark)
+                                Text(settingsManager.transcriptionLanguage == "auto" ? "Auto-detect" : settingsManager.transcriptionLanguage.uppercased())
+                                    .font(.caption)
+                                    .foregroundColor(.cassetteTextMedium)
+                            }
+
+                    NavigationLink(destination: WhisperModelSettingsView()) {
+                        HStack {
+                            Image(systemName: "waveform")
+                                .foregroundColor(.cassetteTeal)
+                                .frame(width: 24)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Whisper Model")
+                                    .foregroundColor(.cassetteTextDark)
+                                Text(settingsManager.whisperModel)
+                                    .font(.caption)
+                                    .foregroundColor(.cassetteTextMedium)
+                            }
+                        }
+                    }
+
+                        }
+                    }
+
+                    NavigationLink(destination: PrivacySettingsView()) {
+                        HStack {
+                            Image(systemName: "hand.raised.fill")
+                                .foregroundColor(.cassetteSage)
+                                .frame(width: 24)
+
+                            Text("Privacy")
+                                .foregroundColor(.cassetteTextDark)
+                        }
+                    }
+                } header: {
+                    Text("Preferences")
+                        .foregroundColor(.cassetteTextMedium)
+                }
+
+                // Support Section
+                Section {
+                    Button(action: {
+                        if let url = URL(string: "https://apps.apple.com/app/idXXXXXXXXXX?action=write-review") {
+                            openURL(url)
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(.cassetteGold)
+                                .frame(width: 24)
+
+                            Text("Rate This App")
+                                .foregroundColor(.cassetteTextDark)
+
+                            Spacer()
+
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption)
+                                .foregroundColor(.cassetteTextMedium)
+                        }
+                    }
+
+                    Button(action: {
+                        if let url = URL(string: "mailto:support@mono-app.com?subject=Mono%20Support") {
+                            openURL(url)
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "envelope.fill")
+                                .foregroundColor(.cassetteTeal)
+                                .frame(width: 24)
+
+                            Text("Contact Support")
+                                .foregroundColor(.cassetteTextDark)
+
+                            Spacer()
+
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption)
+                                .foregroundColor(.cassetteTextMedium)
+                        }
+                    }
+                } header: {
+                    Text("Support")
+                        .foregroundColor(.cassetteTextMedium)
+                }
+
+                // Legal Section
+                Section {
+                    Button(action: {
+                        if let url = URL(string: "https://mono-app.com/terms") {
+                            openURL(url)
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "doc.text.fill")
+                                .foregroundColor(.cassetteTextMedium)
+                                .frame(width: 24)
+
+                            Text("Terms of Service")
+                                .foregroundColor(.cassetteTextDark)
+
+                            Spacer()
+
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption)
+                                .foregroundColor(.cassetteTextMedium)
+                        }
+                    }
+
+                    Button(action: {
+                        if let url = URL(string: "https://mono-app.com/privacy") {
+                            openURL(url)
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "shield.fill")
+                                .foregroundColor(.cassetteTextMedium)
+                                .frame(width: 24)
+
+                            Text("Privacy Policy")
+                                .foregroundColor(.cassetteTextDark)
+
+                            Spacer()
+
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption)
+                                .foregroundColor(.cassetteTextMedium)
+                        }
+                    }
+                } header: {
+                    Text("Legal")
+                        .foregroundColor(.cassetteTextMedium)
+                }
+
+                // Data Management Section
+                Section {
+                    Button(action: {
+                        showingResetAlert = true
+                    }) {
+                        HStack {
+                            Image(systemName: "trash.fill")
+                                .foregroundColor(.cassetteRed)
+                                .frame(width: 24)
+
+                            Text("Clear All Data")
+                                .foregroundColor(.cassetteRed)
+                        }
+                    }
+                } header: {
+                    Text("Data")
+                        .foregroundColor(.cassetteTextMedium)
+                } footer: {
+                    Text("This will permanently delete all your conversations.")
+                        .foregroundColor(.cassetteTextMedium)
+                }
+
+                // About Section
+                Section {
+                    Button(action: { showingAbout = true }) {
+                        HStack {
+                            Image(systemName: "info.circle.fill")
+                                .foregroundColor(.cassetteBlue)
+                                .frame(width: 24)
+
+                            Text("About Mono")
+                                .foregroundColor(.cassetteTextDark)
+
+                            Spacer()
+
+                            Text(getAppVersion())
+                                .foregroundColor(.cassetteTextMedium)
+                                .font(.caption)
+                        }
+                    }
+                } header: {
+                    Text("About")
+                        .foregroundColor(.cassetteTextMedium)
                 }
             }
+            .listStyle(.insetGrouped)
+            .background(Color.cassetteWarmGray.opacity(0.1))
             .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
+                    Button("Done") {
+                        // Save API key
                         UserDefaults.standard.set(apiKey, forKey: "groq_api_key")
+
+                        // Haptic feedback
+                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                        impactFeedback.impactOccurred()
+
                         dismiss()
                     }
-                }
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { dismiss() }
+                    .fontWeight(.semibold)
+                    .foregroundColor(.cassetteOrange)
                 }
             }
         }
+        .onAppear {
+            apiKey = UserDefaults.standard.string(forKey: "groq_api_key") ?? ""
+        }
+        .alert("Clear All Data", isPresented: $showingResetAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Clear All", role: .destructive) {
+                clearAllData()
+            }
+        } message: {
+            Text("This action cannot be undone. All your conversations will be permanently deleted.")
+        }
+        .sheet(isPresented: $showingAbout) {
+            AboutView()
+        }
+    }
+
+    private func getAppVersion() -> String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        return "v\(version) (\(build))"
+    }
+
+    private func clearAllData() {
+        // Clear UserDefaults (but preserve settings)
+        let keysToPreserve = ["groq_api_key", "appearance_mode", "font_size", "notifications_enabled", "analytics_enabled", "crash_reporting_enabled"]
+        let domain = Bundle.main.bundleIdentifier!
+        let defaults = UserDefaults.standard
+        let dictionary = defaults.persistentDomain(forName: domain) ?? [:]
+
+        // Save preserved keys
+        var preservedValues: [String: Any] = [:]
+        for key in keysToPreserve {
+            if let value = dictionary[key] {
+                preservedValues[key] = value
+            }
+        }
+
+        // Clear domain
+        defaults.removePersistentDomain(forName: domain)
+
+        // Restore preserved values
+        for (key, value) in preservedValues {
+            defaults.set(value, forKey: key)
+        }
+        defaults.synchronize()
+
+        // Clear in-memory data
+        DataManager.shared.reset()
+
+        // Haptic feedback
+        let notificationFeedback = UINotificationFeedbackGenerator()
+        notificationFeedback.notificationOccurred(.success)
+
+        dismiss()
     }
 }
 

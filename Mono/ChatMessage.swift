@@ -6,25 +6,30 @@
 //
 
 import Foundation
-import SwiftData
 
-@Model
-class ChatMessage: Identifiable {
-    @Attribute(.unique) var id = UUID()
-    var text: String
-    var isUser: Bool
-    var timestamp: Date
+// Simple in-memory chat message model
+class ChatMessage: Identifiable, ObservableObject {
+    let id = UUID()
+    @Published var text: String
+    @Published var isUser: Bool
+    @Published var timestamp: Date
 
     // Handwritten mode properties
-    var isHandwritten: Bool
-    var handwritingStyle: String // Raw value of HandwritingStyle enum
+    @Published var isHandwritten: Bool
+    @Published var handwritingStyle: String // Raw value of HandwritingStyle enum
 
-    init(text: String, isUser: Bool, isHandwritten: Bool = false, handwritingStyle: HandwritingStyle = .casual) {
+    // Audio recording properties
+    @Published var hasAudioRecording: Bool = false
+    @Published var recordingId: UUID? = nil
+
+    init(text: String, isUser: Bool, isHandwritten: Bool = false, handwritingStyle: HandwritingStyle = .casual, hasAudioRecording: Bool = false, recordingId: UUID? = nil) {
         self.text = text
         self.isUser = isUser
         self.timestamp = Date()
         self.isHandwritten = isHandwritten
         self.handwritingStyle = handwritingStyle.rawValue
+        self.hasAudioRecording = hasAudioRecording
+        self.recordingId = recordingId
     }
 
     var handwritingStyleEnum: HandwritingStyle {

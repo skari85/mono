@@ -29,9 +29,22 @@
 		F6FC32562E4352970093ADA9 /* MonoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MonoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		F6FC32962E44B3100093ADA9 /* Exceptions for "Mono" folder in "Mono" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = F6FC323C2E4352960093ADA9 /* Mono */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		F6FC323F2E4352960093ADA9 /* Mono */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F6FC32962E44B3100093ADA9 /* Exceptions for "Mono" folder in "Mono" target */,
+			);
 			path = Mono;
 			sourceTree = "<group>";
 		};
@@ -399,7 +412,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = QXZ45LCTVG;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Mono/Info.plist;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Mono uses the microphone to record voice messages and audio memories.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -427,7 +442,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = QXZ45LCTVG;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Mono/Info.plist;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Mono uses the microphone to record voice messages and audio memories.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
