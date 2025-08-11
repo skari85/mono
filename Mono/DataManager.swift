@@ -61,9 +61,19 @@ class DataManager: ObservableObject {
     }
 
     func selectConversation(_ id: UUID) {
-        guard let conv = conversations.first(where: { $0.id == id }) else { return }
+        guard let conversation = conversations.first(where: { $0.id == id }) else { return }
+
+        // Save current conversation messages if there's a selected conversation
+        if let currentId = selectedConversationId,
+           let currentIndex = conversations.firstIndex(where: { $0.id == currentId }) {
+            conversations[currentIndex].messages = chatMessages
+        }
+
+        // Switch to new conversation
         selectedConversationId = id
-        chatMessages = conv.messages
+        chatMessages = conversation.messages
+        save()
+        print("🔄 Switched to conversation: \(conversation.title)")
     }
 
     func renameConversation(_ id: UUID, to newTitle: String) {

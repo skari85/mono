@@ -313,6 +313,9 @@ struct ContentView: View {
     // Jump-to-bottom UI
     @State private var shouldShowJumpButton: Bool = false
 
+    // Sidebar state
+    @State private var showingSidebar: Bool = false
+
     private var sortedMessages: [ChatMessage] {
         dataManager.chatMessages.sorted { $0.timestamp < $1.timestamp }
     }
@@ -326,28 +329,57 @@ struct ContentView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            VStack(spacing: 0) {
-                // Top Bar - Compact Header (slightly larger, with settings)
-                HStack(alignment: .center, spacing: 8) {
-                    // Mono logo
-                    HStack(spacing: 2) {
-                        Text("M").organicFont(.headline).fontWeight(.semibold).foregroundColor(.cassetteTextDark)
-                        Text("o").organicFont(.headline).foregroundColor(.cassetteOrange)
-                        Text("n").organicFont(.headline).foregroundColor(.cassetteTextDark)
-                        Text("o").organicFont(.headline).foregroundColor(.cassetteTeal)
-                    }
-                    // New Chat (simple)
-                    Button(action: { dataManager.newConversation() }) {
-                        Label("New Chat", systemImage: "plus")
-                            .font(.subheadline)
-                            .foregroundColor(.cassetteTextDark)
-                            .padding(6)
+            ZStack {
+                // Main content
+                VStack(spacing: 0) {
+                    // Top Bar - Compact Header (slightly larger, with settings)
+                    HStack(alignment: .center, spacing: 8) {
+                        // Sidebar toggle - Very noticeable
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                showingSidebar.toggle()
+                            }
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "line.3.horizontal")
+                                    .font(.system(size: 20, weight: .bold))
+                                Text("Chats")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
                             .background(
-                                HandDrawnCircle(roughness: 2.0)
-                                    .fill(Color.cassetteBeige)
-                                    .opacity(0.9)
+                                LinearGradient(
+                                    colors: [.cassetteOrange, .cassetteRed],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
                             )
-                    }
+                            .cornerRadius(20)
+                            .shadow(color: .cassetteBrown.opacity(0.4), radius: 4, x: 0, y: 2)
+                        }
+
+                        // Mono logo
+                        HStack(spacing: 2) {
+                            Text("M").organicFont(.headline).fontWeight(.semibold).foregroundColor(.cassetteTextDark)
+                            Text("o").organicFont(.headline).foregroundColor(.cassetteOrange)
+                            Text("n").organicFont(.headline).foregroundColor(.cassetteTextDark)
+                            Text("o").organicFont(.headline).foregroundColor(.cassetteTeal)
+                        }
+                        // New Chat (simple)
+                        Button(action: { dataManager.newConversation() }) {
+                            Label("New Chat", systemImage: "plus")
+                                .font(.subheadline)
+                                .foregroundColor(.cassetteTextDark)
+                                .padding(6)
+                                .background(
+                                    HandDrawnCircle(roughness: 2.0)
+                                        .fill(Color.cassetteBeige)
+                                        .opacity(0.9)
+                                )
+                        }
 
                     Spacer()
                     // Mode label (tap to cycle)
@@ -416,26 +448,52 @@ struct ContentView: View {
                         .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: -2)
                     }
                 }
-                // Input bar moved into InputBar view
-            }
-            .background(
-                ZStack {
-                    // Inline toast for errors
-                    if let err = viewModel.lastError {
-                        VStack {
-                            Spacer()
-                            Toast(message: err, isError: true, actionTitle: "Retry") {
-                                withAnimation { viewModel.lastError = nil }
-                                Task { await viewModel.retryLast() }
-                            }
-                        }
-                        .animation(.spring(), value: viewModel.lastError)
-                    }
-
-                    Color.cassetteWarmGray.opacity(0.3)
-                    PaperTexture(opacity: 0.4, seed: 0xC0FFEECAFE)
+                    // Input bar moved into InputBar view
                 }
-            )
+                .background(
+                    ZStack {
+                        // Inline toast for errors
+                        if let err = viewModel.lastError {
+                            VStack {
+                                Spacer()
+                                Toast(message: err, isError: true, actionTitle: "Retry") {
+                                    withAnimation { viewModel.lastError = nil }
+                                    Task { await viewModel.retryLast() }
+                                }
+                            }
+                            .animation(.spring(), value: viewModel.lastError)
+                        }
+
+                        Color.cassetteWarmGray.opacity(0.3)
+                        PaperTexture(opacity: 0.4, seed: 0xC0FFEECAFE)
+                    }
+                )
+
+                // Sidebar overlay
+                if showingSidebar {
+                    HStack(spacing: 0) {
+                        ConversationSidebar(
+                            isVisible: $showingSidebar,
+                            onConversationSelected: { conversationId in
+                                selectConversation(conversationId)
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    showingSidebar = false
+                                }
+                            }
+                        )
+                        .transition(.move(edge: .leading))
+
+                        // Overlay to close sidebar when tapping outside
+                        Color.black.opacity(0.3)
+                            .ignoresSafeArea()
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    showingSidebar = false
+                                }
+                            }
+                    }
+                }
+            }
         }
         .preferredColorScheme(settingsManager.appearanceMode.colorScheme)
         .sheet(isPresented: $showingQuickPrompts) {
@@ -724,6 +782,10 @@ struct ChatMessagesPane: View {
     func isValid(_ text: String) -> Bool {
         let lower = text.lowercased()
         return !text.isEmpty && !lower.contains("nan") && !lower.contains("infinity")
+    }
+
+    private func selectConversation(_ conversationId: UUID) {
+        dataManager.selectConversation(conversationId)
     }
 
 
