@@ -29,6 +29,16 @@ class DataManager: ObservableObject {
             createSampleData()
             save()
         }
+
+        // Ensure current messages are in a conversation
+        if !chatMessages.isEmpty && selectedConversationId == nil {
+            // Create a conversation for existing messages
+            let conversation = Conversation(title: "Welcome Chat", messages: chatMessages)
+            conversations.append(conversation)
+            selectedConversationId = conversation.id
+            save()
+            print("🔄 Created conversation for existing messages")
+        }
     }
 
     // MARK: - Chat Message Management
@@ -44,6 +54,12 @@ class DataManager: ObservableObject {
 
     // MARK: - Conversations Management
     func newConversation(title: String? = nil) {
+        // Save current conversation messages if there's a selected conversation
+        if let currentId = selectedConversationId,
+           let currentIndex = conversations.firstIndex(where: { $0.id == currentId }) {
+            conversations[currentIndex].messages = chatMessages
+        }
+
         let inferredTitle: String
         if let title = title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             inferredTitle = title
@@ -58,22 +74,27 @@ class DataManager: ObservableObject {
         selectedConversationId = conv.id
         chatMessages = []
         save()
+        print("🆕 Created new conversation: \(inferredTitle)")
     }
 
     func selectConversation(_ id: UUID) {
-        guard let conversation = conversations.first(where: { $0.id == id }) else { return }
+        guard let conversation = conversations.first(where: { $0.id == id }) else {
+            print("❌ Conversation not found: \(id)")
+            return
+        }
 
         // Save current conversation messages if there's a selected conversation
         if let currentId = selectedConversationId,
            let currentIndex = conversations.firstIndex(where: { $0.id == currentId }) {
             conversations[currentIndex].messages = chatMessages
+            print("💾 Saved \(chatMessages.count) messages to current conversation")
         }
 
         // Switch to new conversation
         selectedConversationId = id
         chatMessages = conversation.messages
         save()
-        print("🔄 Switched to conversation: \(conversation.title)")
+        print("🔄 Switched to conversation: \(conversation.title) with \(conversation.messages.count) messages")
     }
 
     func renameConversation(_ id: UUID, to newTitle: String) {
