@@ -624,7 +624,6 @@ struct PrivacySettingsView: View {
 
     private func handleMicrophonePermission() {
         // Check current permission status safely when user actually taps
-        let currentStatus: AVAudioSession.RecordPermission
         if #available(iOS 17.0, *) {
             // Non-deprecated: map AVAudioApplication permission directly to our enum
             switch AVAudioApplication.shared.recordPermission {

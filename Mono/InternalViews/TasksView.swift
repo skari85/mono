@@ -40,7 +40,7 @@ struct TasksView: View {
                     Label("Reminders", systemImage: "bell")
                 }
                 .padding(.horizontal)
-                .onChange(of: remindersEnabled) { enabled in
+                .onChange(of: remindersEnabled) { _, enabled in
                     if enabled { dataManager.requestNotificationPermissionsIfNeeded() }
                 }
 

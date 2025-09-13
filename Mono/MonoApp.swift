@@ -7,6 +7,7 @@ struct MonoApp: App {
             AppRootView()
                 .environmentObject(DataManager.shared)
                 .environmentObject(SettingsManager())
+                .environmentObject(AIServiceManager.shared)
         }
     }
 }

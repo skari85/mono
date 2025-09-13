@@ -20,31 +20,71 @@ Tap the mode name at the top to cycle through personalities.
   - 🌱 Expand idea
   - 🤯 Surprise me
 
+### 🤖 Multi-Provider AI Support
+- **Provider Choice**: Switch between Groq, OpenAI, Gemini, and OpenRouter
+- **Model Selection**: Choose from available models for each provider
+- **Secure Storage**: API keys stored safely in iOS Keychain
+- **Provider Status**: Monitor configuration and availability of each service
+- **Unified Interface**: Consistent experience across all AI providers
+
 ### 🎨 Design
 - Minimalist top bar with personality mode toggle
 - Modern message bubbles with smooth animations
 - Bottom input with mic and quick prompts
 - Settings accessible via "..." menu
+- Vintage cassette-inspired color palette and textures
 
 ## Setup
 
-1. **Get a Groq API Key**: Visit [groq.com](https://groq.com) to get your API key
-2. **Configure the App**: Open Settings (tap "..." in top right) and enter your API key
-3. **Start Chatting**: Begin typing or use quick prompts to start conversations
+1. **Choose Your AI Provider**: Mono supports multiple AI service providers:
+   - **Groq** - Fast inference with Llama models
+   - **OpenAI** - GPT models including GPT-4o and GPT-3.5 Turbo
+   - **Google Gemini** - Advanced AI models with large context windows
+   - **OpenRouter** - Access to multiple AI models through unified API
+
+2. **Get an API Key**: Visit your chosen provider's website to get an API key:
+   - [Groq Console](https://console.groq.com/keys)
+   - [OpenAI Platform](https://platform.openai.com/api-keys)
+   - [Google AI Studio](https://aistudio.google.com/app/apikey)
+   - [OpenRouter](https://openrouter.ai/keys)
+
+3. **Configure the App**:
+   - Open Settings (tap "..." in top right)
+   - Tap "AI Provider" to select and configure your preferred service
+   - Enter your API key securely
+   - Choose your preferred model
+
+4. **Start Chatting**: Begin typing or use quick prompts to start conversations
 
 ## Technical Details
 
 - **Framework**: SwiftUI + SwiftData
-- **AI Provider**: Groq API (Llama 3.1 70B)
+- **AI Providers**: Multi-provider BYOK (Bring Your Own Key) system
+- **Supported Services**: Groq, OpenAI, Google Gemini, OpenRouter
+- **Security**: API keys stored securely in iOS Keychain
 - **Storage**: Local SwiftData persistence
 - **Platform**: iOS 17.0+
 
 ## Architecture
 
-- `ContentView`: Main chat interface
-- `ChatViewModel`: Business logic and API communication
+### Core Components
+- `ContentView`: Main chat interface with vintage cassette aesthetic
+- `ChatViewModel`: Business logic and AI service communication
 - `ChatMessage`: SwiftData model for message persistence
 - `PersonalityMode`: Enum for different AI personalities
+
+### AI Service System
+- `AIServiceManager`: Central coordinator for multiple AI providers
+- `AIServiceProvider`: Protocol defining common interface for all providers
+- `APIKeyManager`: Secure storage and management of API keys using iOS Keychain
+- Provider implementations: `GroqServiceProvider`, `OpenAIServiceProvider`, `GeminiServiceProvider`, `OpenRouterServiceProvider`
+
+### Technical Stack
+- **SwiftUI**: Modern declarative UI framework
+- **SwiftData**: Core Data successor for local persistence
+- **MVVM Pattern**: Clean separation of concerns
+- **Combine**: Reactive programming for state management
+- **Protocol-Based Design**: Extensible provider system for easy integration of new AI services
 
 ## Future Enhancements
 

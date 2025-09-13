@@ -10,8 +10,34 @@ final class SummarizationService {
         case invalidJSON
     }
 
-    // Summarize free-form text using Groq Chat Completions (Llama)
+    // Summarize free-form text using the AI service manager
     func summarize(text: String) async throws -> String {
+        let systemPrompt = """
+        You are a focused summarization assistant. Given a raw transcript, produce a clear, concise Markdown summary with the following sections (only include a section if it has content):
+
+        - Key Points: bullet list of the main ideas
+        - Action Items: bullet list using imperative verbs, include owners/dates if present
+        - Priorities: bullet list ordered from highest to lowest urgency/impact
+
+        Rules:
+        - Use short, scannable bullets (one line each if possible)
+        - Avoid fluff, keep it practical
+        - Preserve specific names, dates, numbers
+        - If the input is messy or repetitive, consolidate cleanly
+        """
+
+        // Create a temporary message for summarization
+        let userMessage = ChatMessage(text: text, isUser: true)
+
+        return try await AIServiceManager.shared.sendChatMessage(
+            messages: [userMessage],
+            systemPrompt: systemPrompt,
+            temperature: 0.3
+        )
+    }
+
+    // Legacy method for backward compatibility
+    private func summarizeLegacy(text: String) async throws -> String {
         // API key
         guard let apiKey = UserDefaults.standard.string(forKey: "groq_api_key"), !apiKey.isEmpty else {
             throw SummarizationError.missingAPIKey
@@ -67,18 +93,6 @@ final class SummarizationService {
     // MARK: - Structured "color‑coded sheets" summary
     // Returns a strongly-typed structure with tags, action items, and key insights.
     func summarizeStructured(text: String) async throws -> StructuredSummary {
-        guard let apiKey = UserDefaults.standard.string(forKey: "groq_api_key"), !apiKey.isEmpty else {
-            throw SummarizationError.missingAPIKey
-        }
-
-        let url = URL(string: "https://api.groq.com/openai/v1/chat/completions")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let modelId = UserDefaults.standard.string(forKey: "llm_model") ?? "llama-3.1-8b-instant"
-
         let systemPrompt = """
         You are a meeting notes structurer. Extract:
         - key_points (array of short bullet strings)
@@ -91,30 +105,17 @@ final class SummarizationService {
         No prose, no markdown, no code fences.
         """
 
-        let body: [String: Any] = [
-            "model": modelId,
-            "messages": [
-                ["role": "system", "content": systemPrompt],
-                ["role": "user", "content": text]
-            ],
-            "temperature": 0.2
-        ]
+        // Create a temporary message for structured summarization
+        let userMessage = ChatMessage(text: text, isUser: true)
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw SummarizationError.invalidResponse
-        }
-
-        struct CompletionResponse: Decodable {
-            struct Choice: Decodable { struct Message: Decodable { let content: String } ; let message: Message }
-            let choices: [Choice]
-        }
-        let decoded = try JSONDecoder().decode(CompletionResponse.self, from: data)
-        let content = decoded.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines) ?? "{}"
+        let response = try await AIServiceManager.shared.sendChatMessage(
+            messages: [userMessage],
+            systemPrompt: systemPrompt,
+            temperature: 0.2
+        )
 
         // Some models return JSON in code fences. Strip if present.
-        let cleaned = content
+        let cleaned = response
             .replacingOccurrences(of: "```json", with: "")
             .replacingOccurrences(of: "```", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)

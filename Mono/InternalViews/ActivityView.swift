@@ -12,4 +12,4 @@ struct ActivityView: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-extension String: Identifiable { public var id: String { self } }
+extension String: @retroactive Identifiable { public var id: String { self } }

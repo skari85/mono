@@ -20,7 +20,30 @@ class TranscriptionService {
     static let shared = TranscriptionService()
     private init() {}
 
+    func transcribeAudio(messageId: UUID, language: String? = nil) async throws -> String {
+        // Locate audio file saved by AudioManager
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let audioURL = documentsPath.appendingPathComponent("recording_\(messageId.uuidString).m4a")
+        guard FileManager.default.fileExists(atPath: audioURL.path) else { throw TranscriptionError.fileNotFound }
+
+        // Load audio data
+        guard let audioData = try? Data(contentsOf: audioURL) else {
+            throw TranscriptionError.fileNotFound
+        }
+
+        // Use the new AI service manager for transcription
+        return try await AIServiceManager.shared.transcribeAudio(
+            audioData: audioData,
+            language: language
+        )
+    }
+
+    // Legacy method for backward compatibility
     func transcribeGroqWhisper(messageId: UUID, model: String = "whisper-large-v3-turbo", language: String? = nil) async throws -> String {
+        return try await transcribeAudio(messageId: messageId, language: language)
+    }
+
+    private func transcribeGroqWhisperLegacy(messageId: UUID, model: String = "whisper-large-v3-turbo", language: String? = nil) async throws -> String {
         // Locate audio file saved by AudioManager
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let audioURL = documentsPath.appendingPathComponent("recording_\(messageId.uuidString).m4a")
@@ -66,7 +89,7 @@ class TranscriptionService {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            let _ = (response as? HTTPURLResponse)?.statusCode ?? -1
             throw TranscriptionError.invalidResponse
         }
 

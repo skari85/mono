@@ -53,7 +53,7 @@ struct AppRootView: View {
                 }
 
         .preferredColorScheme(settingsManager.appearanceMode.colorScheme)
-        .onChange(of: showOnboarding) { newValue in
+        .onChange(of: showOnboarding) { _, newValue in
             if !newValue {
                 // Ensure state reflects stored value after dismiss
                 isAuthenticated = UserDefaults.standard.bool(forKey: "is_authenticated")

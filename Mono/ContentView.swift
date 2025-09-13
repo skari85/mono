@@ -533,7 +533,8 @@ struct ContentView: View {
             .preferredColorScheme(settingsManager.appearanceMode.colorScheme)
         }
         .onAppear {
-            if UserDefaults.standard.string(forKey: "groq_api_key") == nil {
+            // Check if any AI provider is configured
+            if AIServiceManager.shared.getConfiguredProviders().isEmpty {
                 showingSettings = true
             }
             // App initialization complete
@@ -995,68 +996,147 @@ struct SettingsView: View {
     @State private var apiKey = ""
     @State private var showingResetAlert = false
     @State private var showingAbout = false
+    @State private var showingLegalSafari = false
+    @State private var selectedLegalURL: URL? = nil
 
     @EnvironmentObject private var settingsManager: SettingsManager
 
     var body: some View {
         NavigationView {
             List {
-                // API Configuration Section
+                // Quick AI Setup Section - Compact and prominent
                 Section {
-                    HStack {
-                        Image(systemName: "key.fill")
-                            .foregroundColor(.cassetteOrange)
-                            .frame(width: 24)
+                    // Main AI Provider Card - More compact
+                    NavigationLink(destination: AIProviderSettingsView()) {
+                        VStack(spacing: 8) {
+                            HStack {
+                                Image(systemName: "brain.head.profile")
+                                    .foregroundColor(.cassetteOrange)
+                                    .font(.title2)
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("API Configuration")
-                                .font(.headline)
-                                .foregroundColor(.cassetteTextDark)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("AI Provider & API Keys")
+                                        .font(.headline)
+                                        .foregroundColor(.cassetteTextDark)
 
-                            SecureField("Enter your Groq API key", text: $apiKey)
-                                .textFieldStyle(.plain)
-                                .foregroundColor(.cassetteTextMedium)
+                                    if let currentProvider = AIServiceManager.shared.currentProvider {
+                                        Text("\(currentProvider.name) • \(AIServiceManager.shared.getConfiguredProviders().count) configured")
+                                            .font(.caption)
+                                            .foregroundColor(.cassetteTextMedium)
+                                    } else {
+                                        Text("Tap to configure your first AI service")
+                                            .font(.caption)
+                                            .foregroundColor(.cassetteRed)
+                                    }
+                                }
+
+                                Spacer()
+
+                                // Status indicators for all providers
+                                HStack(spacing: 4) {
+                                    ForEach(["groq", "openai", "gemini", "openrouter"], id: \.self) { providerId in
+                                        let provider = AIServiceManager.shared.getProvider(id: providerId)
+                                        Circle()
+                                            .fill(provider?.isConfigured == true ? Color.green : Color.gray.opacity(0.3))
+                                            .frame(width: 6, height: 6)
+                                    }
+                                }
+                            }
+
+                            // Quick provider switcher if multiple are configured
+                            if AIServiceManager.shared.getConfiguredProviders().count > 1 {
+                                HStack {
+                                    Text("Quick Switch:")
+                                        .font(.caption2)
+                                        .foregroundColor(.cassetteTextMedium)
+
+                                    ForEach(AIServiceManager.shared.getConfiguredProviders(), id: \.id) { provider in
+                                        Button(provider.name) {
+                                            AIServiceManager.shared.selectedProvider = provider.id
+                                        }
+                                        .font(.caption2)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 2)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .fill(AIServiceManager.shared.selectedProvider == provider.id ?
+                                                      Color.cassetteOrange.opacity(0.3) : Color.gray.opacity(0.1))
+                                        )
+                                    }
+
+                                    Spacer()
+                                }
+                            }
                         }
-                    }
-                    .padding(.vertical, 4)
-
-                    Button(action: {
-                        if let url = URL(string: "https://groq.com") {
-                            openURL(url)
-                        }
-                    }) {
-                        HStack {
-                            Image(systemName: "link")
-                                .foregroundColor(.cassetteTeal)
-                                .frame(width: 24)
-
-                            Text("Get API Key from Groq")
-                                .foregroundColor(.cassetteTeal)
-
-                            Spacer()
-
-                            Image(systemName: "arrow.up.right")
-                                .font(.caption)
-                                .foregroundColor(.cassetteTeal)
-                        }
+                        .padding(.vertical, 4)
                     }
                 } header: {
-                    Text("Configuration")
+                    Text("AI Configuration")
                         .foregroundColor(.cassetteTextMedium)
                 } footer: {
-                    Text("Your API key is stored securely on your device and never shared.")
+                    Text("Supports Groq, OpenAI, Google Gemini, and OpenRouter. Tap to manage API keys and switch providers.")
                         .foregroundColor(.cassetteTextMedium)
                 }
 
-                // App Preferences Section
+                // AI Model & Voice Settings - Compact section
+                Section {
+                    NavigationLink(destination: ModelSettingsView()) {
+                        HStack {
+                            Image(systemName: "cpu.fill")
+                                .foregroundColor(.cassetteTeal)
+                                .frame(width: 20)
+
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("AI Model & Voice")
+                                    .font(.subheadline)
+                                    .foregroundColor(.cassetteTextDark)
+
+                                if let currentProvider = AIServiceManager.shared.currentProvider {
+                                    let currentModel = settingsManager.llmModel
+                                    Text("\(currentProvider.name) • \(currentModel)")
+                                        .font(.caption2)
+                                        .foregroundColor(.cassetteTextMedium)
+                                } else {
+                                    Text("Configure AI provider first")
+                                        .font(.caption2)
+                                        .foregroundColor(.cassetteRed)
+                                }
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.cassetteTextMedium)
+                        }
+                    }
+                } header: {
+                    Text("Model Settings")
+                        .foregroundColor(.cassetteTextMedium)
+                }
+
+                // App Preferences Section - Streamlined
                 Section {
                     NavigationLink(destination: AppearanceSettingsView()) {
                         HStack {
                             Image(systemName: "paintbrush.fill")
                                 .foregroundColor(.cassetteBlue)
-                                .frame(width: 24)
+                                .frame(width: 20)
 
                             Text("Appearance")
+                                .font(.subheadline)
+                                .foregroundColor(.cassetteTextDark)
+                        }
+                    }
+
+                    NavigationLink(destination: PrivacySettingsView()) {
+                        HStack {
+                            Image(systemName: "hand.raised.fill")
+                                .foregroundColor(.cassetteSage)
+                                .frame(width: 20)
+
+                            Text("Privacy & Data")
+                                .font(.subheadline)
                                 .foregroundColor(.cassetteTextDark)
                         }
                     }
@@ -1065,74 +1145,15 @@ struct SettingsView: View {
                         HStack {
                             Image(systemName: "bell.fill")
                                 .foregroundColor(.cassetteRed)
-                                .frame(width: 24)
+                                .frame(width: 20)
 
                             Text("Notifications")
-                                .foregroundColor(.cassetteTextDark)
-                        }
-                    }
-
-                    NavigationLink(destination: ModelSettingsView()) {
-                        HStack {
-                            Image(systemName: "cpu.fill")
-                                .foregroundColor(.cassetteTeal)
-                                .frame(width: 24)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("AI Model")
-                                    .foregroundColor(.cassetteTextDark)
-                                Text(settingsManager.llmModel == "llama-3.1-70b" ? "Llama 3.1 70B (Quality)" : (settingsManager.llmModel == "llama-3.1-8b-instant" ? "Llama 3.1 8B (Instant)" : settingsManager.llmModel))
-                                    .font(.caption)
-                                    .foregroundColor(.cassetteTextMedium)
-                            }
-                        }
-                    }
-
-                    NavigationLink(destination: TranscriptionSettingsView()) {
-                        HStack {
-                            Image(systemName: "waveform.circle.fill")
-                                .foregroundColor(.cassetteOrange)
-                                .frame(width: 24)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Transcription")
-                                    .foregroundColor(.cassetteTextDark)
-                                Text(settingsManager.transcriptionLanguage == "auto" ? "Auto-detect" : settingsManager.transcriptionLanguage.uppercased())
-                                    .font(.caption)
-                                    .foregroundColor(.cassetteTextMedium)
-                            }
-
-                    NavigationLink(destination: WhisperModelSettingsView()) {
-                        HStack {
-                            Image(systemName: "waveform")
-                                .foregroundColor(.cassetteTeal)
-                                .frame(width: 24)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Whisper Model")
-                                    .foregroundColor(.cassetteTextDark)
-                                Text(settingsManager.whisperModel)
-                                    .font(.caption)
-                                    .foregroundColor(.cassetteTextMedium)
-                            }
-                        }
-                    }
-
-                        }
-                    }
-
-                    NavigationLink(destination: PrivacySettingsView()) {
-                        HStack {
-                            Image(systemName: "hand.raised.fill")
-                                .foregroundColor(.cassetteSage)
-                                .frame(width: 24)
-
-                            Text("Privacy")
+                                .font(.subheadline)
                                 .foregroundColor(.cassetteTextDark)
                         }
                     }
                 } header: {
-                    Text("Preferences")
+                    Text("App Settings")
                         .foregroundColor(.cassetteTextMedium)
                 }
 
@@ -1187,8 +1208,9 @@ struct SettingsView: View {
                 // Legal Section
                 Section {
                     Button(action: {
-                        if let url = URL(string: "https://mono-app.com/terms") {
-                            openURL(url)
+                        if let url = URL(string: "https://giannakoudakisatelier.app/terms") {
+                            selectedLegalURL = url
+                            showingLegalSafari = true
                         }
                     }) {
                         HStack {
@@ -1208,8 +1230,9 @@ struct SettingsView: View {
                     }
 
                     Button(action: {
-                        if let url = URL(string: "https://mono-app.com/privacy") {
-                            openURL(url)
+                        if let url = URL(string: "https://giannakoudakisatelier.app/privacy") {
+                            selectedLegalURL = url
+                            showingLegalSafari = true
                         }
                     }) {
                         HStack {
@@ -1230,6 +1253,13 @@ struct SettingsView: View {
                 } header: {
                     Text("Legal")
                         .foregroundColor(.cassetteTextMedium)
+                }
+
+                .sheet(isPresented: $showingLegalSafari) {
+                    if let url = selectedLegalURL {
+                        SafariView(url: url)
+                            .ignoresSafeArea()
+                    }
                 }
 
                 // Data Management Section
@@ -1284,9 +1314,6 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
-                        // Save API key
-                        UserDefaults.standard.set(apiKey, forKey: "groq_api_key")
-
                         // Haptic feedback
                         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
                         impactFeedback.impactOccurred()
@@ -1297,9 +1324,6 @@ struct SettingsView: View {
                     .foregroundColor(.cassetteOrange)
                 }
             }
-        }
-        .onAppear {
-            apiKey = UserDefaults.standard.string(forKey: "groq_api_key") ?? ""
         }
         .alert("Clear All Data", isPresented: $showingResetAlert) {
             Button("Cancel", role: .cancel) { }

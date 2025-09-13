@@ -79,7 +79,14 @@ class ChatViewModel: ObservableObject {
             await MainActor.run {
                 let errorMessage = ChatMessage(text: "[Transcription failed. Please try again.]", isUser: false)
                 dataManager.addChatMessage(errorMessage)
-                lastError = "Transcription or LLM error. Check API key and model."
+
+                // Provide user-friendly error messages
+                if let aiError = error as? AIServiceError {
+                    lastError = aiError.localizedDescription
+                } else {
+                    lastError = "Transcription failed. Please check your connection and try again."
+                }
+
                 loadingPhase = .none
                 isLoading = false
             }
@@ -116,7 +123,13 @@ class ChatViewModel: ObservableObject {
             await MainActor.run {
                 let errorMessage = ChatMessage(text: "[Error: Could not load reply]", isUser: false, isHandwritten: false)
                 dataManager.addChatMessage(errorMessage)
-                lastError = "Chat API error. See console for details."
+
+                // Provide user-friendly error messages
+                if let aiError = error as? AIServiceError {
+                    lastError = aiError.localizedDescription
+                } else {
+                    lastError = "Chat API error. Please check your connection and try again."
+                }
             }
         }
 
@@ -127,61 +140,16 @@ class ChatViewModel: ObservableObject {
     }
 
     private func fetchMonoResponse(for input: String) async throws -> String {
-        // Check if API key is set
-        guard let apiKey = getAPIKey(), !apiKey.isEmpty else {
-            throw NSError(domain: "MonoError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Please set your Groq API key in Settings"])
-        }
-
-        let url = URL(string: "https://api.groq.com/openai/v1/chat/completions")!
-
         let history = await MainActor.run {
             return dataManager.chatMessages
                 .sorted(by: { $0.timestamp < $1.timestamp })
                 .suffix(10)
-                .map { msg in
-                    ["role": msg.isUser ? "user" : "assistant", "content": msg.text]
-                }
         }
 
-        let systemPrompt: [[String: String]] = [
-            ["role": "system", "content": currentMode.systemPrompt]
-        ]
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let modelId = UserDefaults.standard.string(forKey: "llm_model") ?? "llama-3.1-8b-instant"
-        let body: [String: Any] = [
-            "model": modelId,
-            "messages": systemPrompt + history + [["role": "user", "content": input]],
-            "temperature": 0.7
-        ]
-
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        // Check for HTTP errors
-        if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
-            let bodyText = String(data: data, encoding: .utf8) ?? ""
-            print("Groq error status: \(httpResponse.statusCode) body: \(bodyText)")
-            throw NSError(domain: "MonoError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "API request failed (\(httpResponse.statusCode))"])
-        }
-
-        do {
-            let decoded = try JSONDecoder().decode(GroqResponse.self, from: data)
-            if let content = decoded.choices.first?.message.content, !content.isEmpty {
-                return content
-            }
-        } catch {
-            let text = String(data: data, encoding: .utf8) ?? ""
-            print("Groq decode error: \(error) raw: \(text)")
-        }
-        return "..."
-    }
-
-    private func getAPIKey() -> String? {
-        return UserDefaults.standard.string(forKey: "groq_api_key")
+        return try await AIServiceManager.shared.sendChatMessage(
+            messages: Array(history),
+            systemPrompt: currentMode.systemPrompt,
+            temperature: 0.7
+        )
     }
 }

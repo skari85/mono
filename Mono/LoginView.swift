@@ -20,59 +20,54 @@ struct LoginView: View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 0) {
-                    // Top section with vintage branding
-                    VStack(spacing: 32) {
-                        Spacer(minLength: 60)
+                    // Top section with minimal branding
+                    VStack(spacing: 40) {
+                        Spacer(minLength: 80)
 
-                        // Vintage Mono Logo
-                        VStack(spacing: 16) {
-                            // Cassette tape icon with gradient
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [.cassetteOrange, .cassetteRed],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .frame(width: 80, height: 80)
-                                    .shadow(color: .cassetteBrown.opacity(0.3), radius: 8, x: 0, y: 4)
+                        // Monotrans Logo with minimal design
+                        VStack(spacing: 24) {
+                            // Monotrans logo image
+                            Image("Monotrans")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 120, height: 120)
+                                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
 
-                                Text("🎧")
-                                    .font(.system(size: 40))
+                            // Clean typography
+                            VStack(spacing: 8) {
+                                Text("Mono")
+                                    .font(.system(size: 42, weight: .light, design: .default))
+                                    .foregroundColor(.cassetteTextDark)
+                                    .tracking(2)
+
+                                Text("Minimalist AI Chat")
+                                    .font(.system(size: 16, weight: .regular, design: .default))
+                                    .foregroundColor(.cassetteTextMedium)
+                                    .tracking(1)
                             }
-
-                            // Colorful Mono branding
-                            HStack(spacing: 4) {
-                                Text("M").font(.system(size: 48, weight: .bold, design: .rounded)).foregroundColor(.cassetteTextDark)
-                                Text("o").font(.system(size: 48, weight: .bold, design: .rounded)).foregroundColor(.cassetteOrange)
-                                Text("n").font(.system(size: 48, weight: .bold, design: .rounded)).foregroundColor(.cassetteTextDark)
-                                Text("o").font(.system(size: 48, weight: .bold, design: .rounded)).foregroundColor(.cassetteTeal)
-                            }
-
-                            Text("Minimalist AI Chat")
-                                .font(.headline)
-                                .foregroundColor(.cassetteTextMedium)
                         }
 
-                        Spacer(minLength: 40)
+                        Spacer(minLength: 60)
                     }
                     .frame(minHeight: geometry.size.height * 0.5)
                     .background(
-                        ZStack {
-                            Color.cassetteCream
-                            PaperTexture(opacity: 0.3, seed: 0xC0FFEECAFE)
-                        }
+                        LinearGradient(
+                            colors: [
+                                Color.white,
+                                Color.cassetteBeige.opacity(0.3)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
                     )
 
                     // Bottom section with login options
-                    VStack(spacing: 24) {
-                        VStack(spacing: 20) {
+                    VStack(spacing: 32) {
+                        VStack(spacing: 24) {
                             Text("Welcome back")
-                                .font(.title2)
-                                .fontWeight(.semibold)
+                                .font(.system(size: 24, weight: .light, design: .default))
                                 .foregroundColor(.cassetteTextDark)
+                                .tracking(0.5)
 
                             // Apple Sign In
                             SignInWithAppleButton(.signIn) { request in
@@ -82,25 +77,25 @@ struct LoginView: View {
                                 handleAppleSignIn(result)
                             }
                             .signInWithAppleButtonStyle(.black)
-                            .frame(height: 50)
-                            .cornerRadius(12)
+                            .frame(height: 52)
+                            .cornerRadius(16)
 
                             // Google Sign In Button
                             Button(action: handleGoogleSignIn) {
                                 HStack(spacing: 12) {
                                     Image(systemName: "globe")
-                                        .font(.title2)
+                                        .font(.system(size: 18, weight: .medium))
                                     Text("Continue with Google")
-                                        .fontWeight(.medium)
+                                        .font(.system(size: 16, weight: .medium))
                                 }
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 50)
+                                .frame(height: 52)
                                 .background(Color.white)
-                                .foregroundColor(.black)
-                                .cornerRadius(12)
+                                .foregroundColor(.cassetteTextDark)
+                                .cornerRadius(16)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color.cassetteWarmGray.opacity(0.4), lineWidth: 1)
                                 )
                             }
 
@@ -108,45 +103,47 @@ struct LoginView: View {
                             // Divider
                             HStack {
                                 Rectangle()
-                                    .fill(Color.cassetteTextMedium.opacity(0.3))
-                                    .frame(height: 1)
+                                    .fill(Color.cassetteTextMedium.opacity(0.2))
+                                    .frame(height: 0.5)
                                 Text("or")
-                                    .font(.caption)
+                                    .font(.system(size: 14, weight: .regular))
                                     .foregroundColor(.cassetteTextMedium)
-                                    .padding(.horizontal, 16)
+                                    .padding(.horizontal, 20)
                                 Rectangle()
-                                    .fill(Color.cassetteTextMedium.opacity(0.3))
-                                    .frame(height: 1)
+                                    .fill(Color.cassetteTextMedium.opacity(0.2))
+                                    .frame(height: 0.5)
                             }
 
                             // Email/Password Form
-                            VStack(spacing: 16) {
+                            VStack(spacing: 20) {
                                 TextField("Email", text: $email)
                                     .textContentType(.username)
                                     .keyboardType(.emailAddress)
                                     .autocapitalization(.none)
                                     .textInputAutocapitalization(.never)
                                     .disableAutocorrection(true)
-                                    .padding(16)
+                                    .font(.system(size: 16, weight: .regular))
+                                    .padding(18)
                                     .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color.cassetteBeige.opacity(0.5))
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .fill(Color.white)
                                     )
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.cassetteWarmGray.opacity(0.5), lineWidth: 1)
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(Color.cassetteWarmGray.opacity(0.3), lineWidth: 1)
                                     )
 
                                 SecureField("Password", text: $password)
                                     .textContentType(.password)
-                                    .padding(16)
+                                    .font(.system(size: 16, weight: .regular))
+                                    .padding(18)
                                     .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color.cassetteBeige.opacity(0.5))
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .fill(Color.white)
                                     )
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.cassetteWarmGray.opacity(0.5), lineWidth: 1)
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(Color.cassetteWarmGray.opacity(0.3), lineWidth: 1)
                                     )
 
                                 if let error = error {
@@ -164,33 +161,33 @@ struct LoginView: View {
                                                 .tint(.white)
                                         } else {
                                             Text("Sign In")
-                                                .fontWeight(.semibold)
+                                                .font(.system(size: 16, weight: .medium))
                                         }
                                     }
                                     .frame(maxWidth: .infinity)
-                                    .frame(height: 50)
+                                    .frame(height: 52)
                                     .background(
                                         LinearGradient(
-                                            colors: [.cassetteOrange, .cassetteRed],
+                                            colors: [.cassetteTextDark, .cassetteTextDark.opacity(0.8)],
                                             startPoint: .leading,
                                             endPoint: .trailing
                                         )
                                     )
                                     .foregroundColor(.white)
-                                    .cornerRadius(12)
-                                    .shadow(color: .cassetteBrown.opacity(0.3), radius: 4, x: 0, y: 2)
+                                    .cornerRadius(16)
+                                    .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
                                 }
                                 .disabled(email.isEmpty || password.isEmpty || isLoading)
                                 .opacity((email.isEmpty || password.isEmpty || isLoading) ? 0.6 : 1.0)
                             }
                         }
 
-                        Spacer(minLength: 40)
+                        Spacer(minLength: 60)
                     }
-                    .padding(.horizontal, 32)
-                    .padding(.vertical, 32)
+                    .padding(.horizontal, 40)
+                    .padding(.vertical, 40)
                     .frame(minHeight: geometry.size.height * 0.5)
-                    .background(Color.cassetteWarmGray.opacity(0.1))
+                    .background(Color.white)
                 }
             }
         }
