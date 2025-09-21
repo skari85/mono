@@ -14,7 +14,7 @@ class SettingsManager: ObservableObject {
     @Published var appearanceMode: AppearanceMode = .system
     @Published var fontSize: FontSize = .medium
     @Published var notificationsEnabled: Bool = false
-    @Published var analyticsEnabled: Bool = true
+    // Analytics removed for privacy - only local storage with iCloud sync
     @Published var crashReportingEnabled: Bool = true
     @Published var llmModel: String = UserDefaults.standard.string(forKey: "llm_model") ?? "llama-3.1-8b-instant" {
         didSet { UserDefaults.standard.set(llmModel, forKey: "llm_model") }
@@ -115,7 +115,7 @@ class SettingsManager: ObservableObject {
         }
 
         notificationsEnabled = UserDefaults.standard.bool(forKey: "notifications_enabled")
-        analyticsEnabled = UserDefaults.standard.bool(forKey: "analytics_enabled")
+        // Analytics removed for privacy
         crashReportingEnabled = UserDefaults.standard.bool(forKey: "crash_reporting_enabled")
     }
 
@@ -123,7 +123,7 @@ class SettingsManager: ObservableObject {
         UserDefaults.standard.set(appearanceMode.rawValue, forKey: "appearance_mode")
         UserDefaults.standard.set(fontSize.rawValue, forKey: "font_size")
         UserDefaults.standard.set(notificationsEnabled, forKey: "notifications_enabled")
-        UserDefaults.standard.set(analyticsEnabled, forKey: "analytics_enabled")
+        // Analytics removed for privacy
         UserDefaults.standard.set(crashReportingEnabled, forKey: "crash_reporting_enabled")
     }
 }
@@ -424,10 +424,9 @@ struct PrivacySettingsView: View {
         List {
             Section {
                 Toggle(isOn: Binding(
-                    get: { settingsManager.analyticsEnabled },
+                    get: { false }, // Analytics disabled for privacy
                     set: { newValue in
-                        settingsManager.analyticsEnabled = newValue
-                        settingsManager.saveSettings()
+                        // Analytics permanently disabled for privacy
 
                         // Haptic feedback
                         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
@@ -435,15 +434,15 @@ struct PrivacySettingsView: View {
                     }
                 )) {
                     HStack {
-                        Image(systemName: "chart.bar.fill")
-                            .foregroundColor(.cassetteBlue)
+                        Image(systemName: "lock.shield.fill")
+                            .foregroundColor(.green)
                             .frame(width: 24)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Analytics")
+                            Text("Privacy First")
                                 .foregroundColor(.cassetteTextDark)
 
-                            Text("Help improve Mono with usage data")
+                            Text("All data stays on your device. iCloud sync only.")
                                 .font(.caption)
                                 .foregroundColor(.cassetteTextMedium)
                         }

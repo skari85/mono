@@ -31,7 +31,8 @@ struct AIProviderSettingsView: View {
                                     .foregroundColor(.cassetteTextDark)
 
                                 let configuredCount = aiServiceManager.getConfiguredProviders().count
-                                Text("\(configuredCount) of 4 providers configured")
+                                let totalCount = aiServiceManager.availableProviders.count
+                                Text("\(configuredCount) of \(totalCount) providers configured")
                                     .font(.caption)
                                     .foregroundColor(.cassetteTextMedium)
                             }
@@ -39,34 +40,44 @@ struct AIProviderSettingsView: View {
                             Spacer()
                         }
 
-                        // Compact provider grid
+                        // Provider cards grid - Groq and OpenAI
                         LazyVGrid(columns: [
                             GridItem(.flexible()),
                             GridItem(.flexible())
-                        ], spacing: 12) {
-                            ForEach(Array(aiServiceManager.availableProviders.keys.sorted()), id: \.self) { providerId in
-                                if let provider = aiServiceManager.availableProviders[providerId] {
-                                    CompactProviderCard(
-                                        provider: provider,
-                                        isSelected: aiServiceManager.selectedProvider == providerId,
-                                        onSelect: {
-                                            aiServiceManager.selectedProvider = providerId
-                                        },
-                                        onConfigureKey: {
-                                            selectedProviderForKeyEntry = providerId
-                                            showingAPIKeySheet = true
-                                        }
-                                    )
-                                }
+                        ], spacing: 16) {
+                            // Groq Provider Card
+                            if let groqProvider = aiServiceManager.availableProviders["groq"] {
+                                ProviderCard(
+                                    provider: groqProvider,
+                                    icon: "bolt.fill",
+                                    color: .cassetteOrange,
+                                    onConfigureKey: {
+                                        selectedProviderForKeyEntry = "groq"
+                                        showingAPIKeySheet = true
+                                    }
+                                )
+                            }
+                            
+                            // OpenAI Provider Card
+                            if let openAIProvider = aiServiceManager.availableProviders["openai"] {
+                                ProviderCard(
+                                    provider: openAIProvider,
+                                    icon: "brain.head.profile",
+                                    color: .cassetteBlue,
+                                    onConfigureKey: {
+                                        selectedProviderForKeyEntry = "openai"
+                                        showingAPIKeySheet = true
+                                    }
+                                )
                             }
                         }
                     }
                     .padding(.vertical, 8)
                 } header: {
-                    Text("Choose & Configure")
+                    Text("AI Configuration")
                         .foregroundColor(.cassetteTextMedium)
                 } footer: {
-                    Text("Tap a provider to select it, or tap the key icon to add/edit API keys. You can configure multiple providers and switch between them.")
+                    Text("Configure your API keys for Groq or OpenAI to start using AI features. Keys are stored securely in the device keychain.")
                         .foregroundColor(.cassetteTextMedium)
                 }
                 
@@ -123,6 +134,10 @@ struct AIProviderSettingsView: View {
             if let providerId = selectedProviderForKeyEntry,
                let provider = aiServiceManager.availableProviders[providerId] {
                 APIKeyEntryView(provider: provider)
+            } else {
+                Text("Error: Provider not found")
+                    .foregroundColor(.red)
+                    .padding()
             }
         }
     }
@@ -135,6 +150,7 @@ struct ProviderRow: View {
     let isSelected: Bool
     let onSelect: () -> Void
     let onConfigureKey: () -> Void
+    @EnvironmentObject private var aiServiceManager: AIServiceManager
     
     var body: some View {
         Button(action: onSelect) {
@@ -166,7 +182,7 @@ struct ProviderRow: View {
                             .font(.title3)
                     }
                     
-                    StatusIndicator(isConfigured: provider.isConfigured)
+                    StatusIndicator(isConfigured: aiServiceManager.isProviderConfigured(provider.id))
                 }
             }
             .contentShape(Rectangle())
@@ -184,17 +200,15 @@ struct ProviderRow: View {
         case "groq": return "bolt.fill"
         case "openai": return "brain.head.profile"
         case "gemini": return "sparkles"
-        case "openrouter": return "arrow.triangle.swap"
         default: return "cpu.fill"
         }
     }
-    
+
     private var providerColor: Color {
         switch provider.id {
         case "groq": return .cassetteOrange
         case "openai": return .cassetteBlue
         case "gemini": return .cassetteTeal
-        case "openrouter": return .cassetteSage
         default: return .cassetteTextMedium
         }
     }
@@ -268,34 +282,53 @@ struct CompactProviderCard: View {
     let isSelected: Bool
     let onSelect: () -> Void
     let onConfigureKey: () -> Void
+    @EnvironmentObject private var aiServiceManager: AIServiceManager
 
     var body: some View {
         VStack(spacing: 8) {
             // Provider header
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(provider.name)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.cassetteTextDark)
+                    HStack(spacing: 4) {
+                        Image(systemName: providerIcon)
+                            .font(.caption)
+                            .foregroundColor(providerColor)
+                        Text(provider.name)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.cassetteTextDark)
+                    }
 
-                    Text("\(provider.availableModels.count) models")
+                    Text("\(provider.availableModels.count) models • \(provider.id)")
                         .font(.caption2)
                         .foregroundColor(.cassetteTextMedium)
                 }
 
                 Spacer()
 
-                // API Key button
-                Button(action: onConfigureKey) {
-                    Image(systemName: provider.isConfigured ? "key.fill" : "key")
-                        .font(.caption)
-                        .foregroundColor(provider.isConfigured ? .green : .cassetteOrange)
-                        .frame(width: 20, height: 20)
-                        .background(
-                            Circle()
-                                .fill(Color.white.opacity(0.8))
-                        )
+                // API Key button - Enhanced for clarity
+                Button(action: {
+                    print("🔑 Button tapped for provider: \(provider.id) - \(provider.name)")
+                    onConfigureKey()
+                }) {
+                    let isConfigured = aiServiceManager.isProviderConfigured(provider.id)
+                    VStack(spacing: 2) {
+                        Image(systemName: isConfigured ? "key.fill" : "key")
+                            .font(.caption)
+                            .foregroundColor(isConfigured ? .green : .cassetteOrange)
+                        Text(isConfigured ? "Edit" : "Add")
+                            .font(.caption2)
+                            .foregroundColor(isConfigured ? .green : .cassetteOrange)
+                    }
+                    .frame(width: 50, height: 30)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.white.opacity(0.8))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(isConfigured ? Color.green.opacity(0.3) : Color.cassetteOrange.opacity(0.3), lineWidth: 1)
+                            )
+                    )
                 }
             }
 
@@ -312,8 +345,9 @@ struct CompactProviderCard: View {
                     Spacer()
 
                     // Status dot
+                    let isConfigured = aiServiceManager.isProviderConfigured(provider.id)
                     Circle()
-                        .fill(provider.isConfigured ? Color.green : Color.gray.opacity(0.4))
+                        .fill(isConfigured ? Color.green : Color.gray.opacity(0.4))
                         .frame(width: 6, height: 6)
                 }
                 .padding(.horizontal, 8)
@@ -339,5 +373,25 @@ struct CompactProviderCard: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(isSelected ? Color.cassetteOrange.opacity(0.3) : Color.clear, lineWidth: 1.5)
         )
+    }
+    
+    // MARK: - Provider-specific Properties
+    
+    private var providerIcon: String {
+        switch provider.id {
+        case "groq": return "bolt.fill"
+        case "openai": return "brain.head.profile"
+        case "gemini": return "sparkles"
+        default: return "cpu.fill"
+        }
+    }
+
+    private var providerColor: Color {
+        switch provider.id {
+        case "groq": return .cassetteOrange
+        case "openai": return .cassetteBlue
+        case "gemini": return .cassetteTeal
+        default: return .cassetteTextMedium
+        }
     }
 }

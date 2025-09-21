@@ -8,6 +8,46 @@
 import Foundation
 import SwiftUI
 
+// MARK: - Smart Cross-Reference Models
+
+struct IntelligentReference: Identifiable, Codable {
+    var id = UUID()
+    let sourceConversationId: UUID
+    let relevantQuote: String
+    let contextSummary: String
+    let confidenceScore: Float
+    let connectionType: String
+    let createdAt: Date
+    
+    init(sourceConversationId: UUID, relevantQuote: String, contextSummary: String, confidenceScore: Float, connectionType: String) {
+        self.sourceConversationId = sourceConversationId
+        self.relevantQuote = relevantQuote
+        self.contextSummary = contextSummary
+        self.confidenceScore = confidenceScore
+        self.connectionType = connectionType
+        self.createdAt = Date()
+    }
+}
+
+struct ConversationInsight: Identifiable, Codable {
+    var id = UUID()
+    let conversationId: UUID
+    let insightType: InsightType
+    let title: String
+    let description: String
+    let actionable: Bool
+    let priority: Int
+    let createdAt: Date
+    
+    enum InsightType: String, Codable, CaseIterable {
+        case pattern = "pattern"
+        case decision = "decision"
+        case followUp = "follow_up"
+        case connection = "connection"
+        case trend = "trend"
+    }
+}
+
 // MARK: - Simple In-Memory Data Manager
 class DataManager: ObservableObject {
     static let shared = DataManager()
@@ -21,6 +61,10 @@ class DataManager: ObservableObject {
     // Conversations
     @Published var conversations: [Conversation] = []
     @Published var selectedConversationId: UUID? = nil
+    
+    // Smart Cross-References
+    @Published var intelligentReferences: [IntelligentReference] = []
+    @Published var conversationInsights: [ConversationInsight] = []
 
     private init() {
         print("🔧 DataManager initialized")
@@ -202,7 +246,9 @@ class DataManager: ObservableObject {
             chatMessages: chatMessages.map { $0.toDTO() },
             conversations: conversations.map { $0.toDTO() },
             thoughts: thoughts.map { $0.toDTO() },
-            tasks: tasks.map { $0.toDTO() }
+            tasks: tasks.map { $0.toDTO() },
+            intelligentReferences: intelligentReferences.map { $0.toDTO() },
+            conversationInsights: conversationInsights.map { $0.toDTO() }
         )
     }
 
@@ -214,6 +260,8 @@ class DataManager: ObservableObject {
         if let first = conversations.first { chatMessages = first.messages }
         thoughts = (snap.thoughts ?? []).map { Thought.fromDTO($0) }
         tasks = (snap.tasks ?? []).map { TaskItem.fromDTO($0) }
+        intelligentReferences = (snap.intelligentReferences ?? []).map { IntelligentReference.fromDTO($0) }
+        conversationInsights = (snap.conversationInsights ?? []).map { ConversationInsight.fromDTO($0) }
     }
 
     func save() {
@@ -221,9 +269,9 @@ class DataManager: ObservableObject {
             let snap = snapshot()
             let data = try JSONEncoder().encode(snap)
             try data.write(to: PersistencePaths.dataURL, options: .atomic)
-            print("💾 Saved app data to: \(PersistencePaths.dataURL.path)")
+            print("💾 Saved app data locally (iCloud sync if enabled): \(PersistencePaths.dataURL.path)")
         } catch {
-            print("❌ Failed to save app data: \(error)")
+            print("❌ Failed to save app data locally: \(error)")
         }
     }
 
@@ -240,6 +288,91 @@ class DataManager: ObservableObject {
             print("📥 Loaded app data from: \(url.path)")
         } catch {
             print("❌ Failed to load app data: \(error)")
+        }
+    }
+    
+    // MARK: - Smart Cross-Referencing
+    
+    func generateIntelligentReferences(for conversationId: UUID) async {
+        guard let currentConversation = conversations.first(where: { $0.id == conversationId }) else { return }
+        
+        let currentContent = currentConversation.messages.map { $0.text }.joined(separator: "\n")
+        
+        // Check against other conversations
+        var foundReferences: [IntelligentReference] = []
+        for otherConversation in conversations where otherConversation.id != conversationId {
+            let otherContent = otherConversation.messages.map { $0.text }.joined(separator: "\n")
+            
+            if let reference = await findIntelligentConnection(
+                currentContent: currentContent,
+                otherContent: otherContent,
+                otherConversationId: otherConversation.id
+            ) {
+                foundReferences.append(reference)
+            }
+        }
+        
+        // Update on main actor with local copy
+        let referencesToAdd = foundReferences
+        await MainActor.run {
+            intelligentReferences.append(contentsOf: referencesToAdd)
+            save()
+        }
+    }
+    
+    private func findIntelligentConnection(currentContent: String, otherContent: String, otherConversationId: UUID) async -> IntelligentReference? {
+        do {
+            let prompt = """
+            Analyze these two conversations and determine if there are meaningful connections. If you find a connection, extract the most relevant quote from the previous conversation and explain why it's relevant.
+            
+            Current conversation:
+            \(currentContent.prefix(800))
+            
+            Previous conversation:
+            \(otherContent.prefix(800))
+            
+            Respond with JSON format:
+            {"has_connection": true/false, "quote": "exact quote", "context": "why relevant", "confidence": 0.0-1.0, "connection_type": "similar/causal/contradictory/elaborative"}
+            
+            Only respond if confidence > 0.3. Return {"has_connection": false} if no meaningful connection.
+            """
+            
+            let response = try await AIServiceManager.shared.sendChatMessage(
+                messages: [ChatMessage(text: prompt, isUser: true)],
+                systemPrompt: "You are an intelligent cross-reference system. Be precise and conservative.",
+                temperature: 0.2
+            )
+            
+            // Parse JSON response
+            guard let data = response.data(using: .utf8),
+                  let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let hasConnection = json["has_connection"] as? Bool,
+                  hasConnection,
+                  let quote = json["quote"] as? String,
+                  let context = json["context"] as? String,
+                  let confidence = json["confidence"] as? Double,
+                  let connectionType = json["connection_type"] as? String,
+                  confidence > 0.3 else {
+                return nil
+            }
+            
+            return IntelligentReference(
+                sourceConversationId: otherConversationId,
+                relevantQuote: quote,
+                contextSummary: context,
+                confidenceScore: Float(confidence),
+                connectionType: connectionType
+            )
+            
+        } catch {
+            print("❌ Failed to generate intelligent reference: \(error)")
+            return nil
+        }
+    }
+    
+    func getReferencesForConversation(_ conversationId: UUID) -> [IntelligentReference] {
+        return intelligentReferences.filter { ref in
+            conversations.contains { $0.id == conversationId }
         }
     }
 }

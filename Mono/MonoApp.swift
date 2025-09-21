@@ -8,6 +8,9 @@ struct MonoApp: App {
                 .environmentObject(DataManager.shared)
                 .environmentObject(SettingsManager())
                 .environmentObject(AIServiceManager.shared)
+                .environmentObject(CalendarManager.shared)
+                .environmentObject(FocusManager.shared)
+                .environmentObject(AppleNotesManager.shared)
         }
     }
 }

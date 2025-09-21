@@ -17,8 +17,8 @@ struct InputBar: View {
     let onShowQuickPrompts: () -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
-            // Main Input Area - Larger and more prominent
+        VStack(spacing: 0) {
+            // Main Input Area - Fixed layout to prevent constraint conflicts
             VStack(spacing: 12) {
                 HStack {
                     Text("Message")
@@ -57,11 +57,11 @@ struct InputBar: View {
                     }
                 }
 
-                // Large text input area
+                // Large text input area with fixed constraints
                 HStack(alignment: .bottom, spacing: 12) {
                     TextField("Type your message...", text: $input, axis: .vertical)
                         .textFieldStyle(.plain)
-                        .lineLimit(1...6)
+                        .lineLimit(1...4)
                         .submitLabel(.send)
                         .font(.body)
                         .foregroundColor(.primary)
@@ -78,6 +78,7 @@ struct InputBar: View {
                         .onSubmit {
                             sendMessage()
                         }
+                        .scrollDismissesKeyboard(.interactively)
 
                     Button(action: sendMessage) {
                         Image(systemName: "arrow.up.circle.fill")
@@ -90,7 +91,7 @@ struct InputBar: View {
             .padding(.horizontal, 20)
             .padding(.top, 16)
 
-            // Footer with action buttons
+            // Footer with action buttons - Fixed height to prevent constraint conflicts
             HStack(spacing: 16) {
                 // Quick Prompts Button
                 Button(action: onShowQuickPrompts) {
@@ -147,6 +148,7 @@ struct InputBar: View {
 
                 Spacer()
             }
+            .frame(height: 60) // Fixed height to prevent constraint conflicts
             .padding(.horizontal, 20)
             .padding(.bottom, 16)
         }

@@ -60,6 +60,33 @@ struct AppDataSnapshot: Codable {
     var conversations: [SavedConversationDTO]? // optional for backward compatibility
     var thoughts: [ThoughtDTO]? // backward compatible
     var tasks: [TaskItemDTO]? // optional for backward compatibility
+    
+    // Smart Memory System
+    var intelligentReferences: [IntelligentReferenceDTO]? // new features
+    var conversationInsights: [ConversationInsightDTO]? // new features
+}
+
+// MARK: - Smart Memory DTOs
+
+struct IntelligentReferenceDTO: Codable {
+    let id: UUID
+    let sourceConversationId: UUID
+    let relevantQuote: String
+    let contextSummary: String
+    let confidenceScore: Float
+    let connectionType: String
+    let createdAt: Date
+}
+
+struct ConversationInsightDTO: Codable {
+    let id: UUID
+    let conversationId: UUID
+    let insightType: String
+    let title: String
+    let description: String
+    let actionable: Bool
+    let priority: Int
+    let createdAt: Date
 }
 
 enum PersistencePaths {
@@ -136,6 +163,59 @@ extension Conversation {
     }
     static func fromDTO(_ dto: SavedConversationDTO) -> Conversation {
         Conversation(id: dto.id, title: dto.title, createdAt: dto.createdAt, messages: dto.messages.map { ChatMessage.fromDTO($0) })
+    }
+}
+
+// MARK: - Smart Memory Extensions
+
+extension IntelligentReference {
+    func toDTO() -> IntelligentReferenceDTO {
+        IntelligentReferenceDTO(
+            id: id,
+            sourceConversationId: sourceConversationId,
+            relevantQuote: relevantQuote,
+            contextSummary: contextSummary,
+            confidenceScore: confidenceScore,
+            connectionType: connectionType,
+            createdAt: createdAt
+        )
+    }
+    
+    static func fromDTO(_ dto: IntelligentReferenceDTO) -> IntelligentReference {
+        IntelligentReference(
+            sourceConversationId: dto.sourceConversationId,
+            relevantQuote: dto.relevantQuote,
+            contextSummary: dto.contextSummary,
+            confidenceScore: dto.confidenceScore,
+            connectionType: dto.connectionType
+        )
+    }
+}
+
+extension ConversationInsight {
+    func toDTO() -> ConversationInsightDTO {
+        ConversationInsightDTO(
+            id: id,
+            conversationId: conversationId,
+            insightType: insightType.rawValue,
+            title: title,
+            description: description,
+            actionable: actionable,
+            priority: priority,
+            createdAt: createdAt
+        )
+    }
+    
+    static func fromDTO(_ dto: ConversationInsightDTO) -> ConversationInsight {
+        ConversationInsight(
+            conversationId: dto.conversationId,
+            insightType: ConversationInsight.InsightType(rawValue: dto.insightType) ?? .pattern,
+            title: dto.title,
+            description: dto.description,
+            actionable: dto.actionable,
+            priority: dto.priority,
+            createdAt: dto.createdAt
+        )
     }
 }
 

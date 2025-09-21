@@ -83,26 +83,44 @@ final class GroqServiceProvider: AIServiceProvider {
             "messages": apiMessages,
             "temperature": temperature
         ]
-        
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        } catch {
+            throw AIServiceError.invalidResponse("Failed to encode request: \(error)")
+        }
+
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             
             if let httpResponse = response as? HTTPURLResponse {
+                let bodyText = String(data: data, encoding: .utf8) ?? ""
+
                 switch httpResponse.statusCode {
                 case 200:
                     break
+                case 400:
+                    if bodyText.contains("invalid_request_error") {
+                        throw AIServiceError.invalidResponse("Invalid request: \(bodyText)")
+                    } else {
+                        throw AIServiceError.invalidResponse("Bad request: \(bodyText)")
+                    }
                 case 401:
                     throw AIServiceError.invalidAPIKey(provider: name)
                 case 429:
                     throw AIServiceError.rateLimitExceeded(provider: name)
+                case 402:
+                    throw AIServiceError.insufficientCredits(provider: name)
                 case 500...599:
                     throw AIServiceError.serviceUnavailable(provider: name)
                 default:
-                    let bodyText = String(data: data, encoding: .utf8) ?? ""
                     throw AIServiceError.invalidResponse("HTTP \(httpResponse.statusCode): \(bodyText)")
                 }
+            }
+
+            // Debug: Print response for troubleshooting
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("Groq Response: \(responseString)")
             }
             
             let decoded = try JSONDecoder().decode(GroqResponse.self, from: data)
@@ -115,6 +133,8 @@ final class GroqServiceProvider: AIServiceProvider {
             
         } catch let error as AIServiceError {
             throw error
+        } catch let decodingError as DecodingError {
+            throw AIServiceError.invalidResponse("Failed to decode Groq response: \(decodingError)")
         } catch {
             throw AIServiceError.networkError(error)
         }
@@ -175,6 +195,8 @@ final class GroqServiceProvider: AIServiceProvider {
                     throw AIServiceError.invalidAPIKey(provider: name)
                 case 429:
                     throw AIServiceError.rateLimitExceeded(provider: name)
+                case 402:
+                    throw AIServiceError.insufficientCredits(provider: name)
                 case 500...599:
                     throw AIServiceError.serviceUnavailable(provider: name)
                 default:

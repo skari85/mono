@@ -11,13 +11,14 @@ struct APIKeyEntryView: View {
     let provider: AIServiceProvider
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
-    
+    @EnvironmentObject private var aiServiceManager: AIServiceManager
+
     @State private var apiKey: String = ""
     @State private var isLoading = false
     @State private var showingError = false
     @State private var errorMessage = ""
     @State private var showingSuccess = false
-    
+
     private let apiKeyManager = APIKeyManager.shared
     
     var body: some View {
@@ -50,17 +51,47 @@ struct APIKeyEntryView: View {
                         }
                         .padding(.top, 20)
                         
-                        // API Key Input
+                        // API Key Input - Enhanced for clarity
                         VStack(spacing: 16) {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("API Key")
-                                    .font(.headline)
-                                    .foregroundColor(.cassetteTextDark)
+                                HStack {
+                                    Text("\(provider.name) API Key")
+                                        .font(.headline)
+                                        .foregroundColor(.cassetteTextDark)
+                                    
+                                    Spacer()
+                                    
+                                    // Status indicator
+                                    if !apiKey.isEmpty {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundColor(.green)
+                                                .font(.caption)
+                                            Text("Key Entered")
+                                                .font(.caption2)
+                                                .foregroundColor(.green)
+                                        }
+                                    }
+                                }
+                                
+                                Text("This key is stored securely and only used for \(provider.name) services")
+                                    .font(.caption)
+                                    .foregroundColor(.cassetteTextMedium)
                                 
                                 SecureField("Enter your \(provider.name) API key", text: $apiKey)
                                     .textFieldStyle(CustomTextFieldStyle())
                                     .autocapitalization(.none)
                                     .autocorrectionDisabled()
+                                    .onChange(of: apiKey) { _, newValue in
+                                        // Real-time validation feedback
+                                        if !newValue.isEmpty {
+                                            // Simple validation - check if it looks like an API key
+                                            let isValidFormat = newValue.count > 10 && newValue.contains("-")
+                                            if !isValidFormat {
+                                                // Could add visual feedback here
+                                            }
+                                        }
+                                    }
                             }
                             
                             // Get API Key Button
@@ -192,7 +223,10 @@ struct APIKeyEntryView: View {
                 await MainActor.run {
                     isLoading = false
                     showingSuccess = true
-                    
+
+                    // Refresh provider states
+                    aiServiceManager.refreshProviderStates()
+
                     // Haptic feedback
                     let impactFeedback = UIImpactFeedbackGenerator(style: .light)
                     impactFeedback.impactOccurred()
@@ -220,27 +254,24 @@ struct APIKeyEntryView: View {
         case "groq": return "bolt.fill"
         case "openai": return "brain.head.profile"
         case "gemini": return "sparkles"
-        case "openrouter": return "arrow.triangle.swap"
         default: return "key.fill"
         }
     }
-    
+
     private var providerColor: Color {
         switch provider.id {
         case "groq": return .cassetteOrange
         case "openai": return .cassetteBlue
         case "gemini": return .cassetteTeal
-        case "openrouter": return .cassetteSage
         default: return .cassetteTextMedium
         }
     }
-    
+
     private var providerWebsiteURL: String {
         switch provider.id {
         case "groq": return "https://console.groq.com/keys"
         case "openai": return "https://platform.openai.com/api-keys"
         case "gemini": return "https://aistudio.google.com/app/apikey"
-        case "openrouter": return "https://openrouter.ai/keys"
         default: return "https://example.com"
         }
     }

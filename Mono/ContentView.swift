@@ -1,4 +1,5 @@
 import SwiftUI
+import EventKit
 import SwiftData
 
 // Warm, analog color palette inspired by vintage cassette aesthetics
@@ -15,14 +16,14 @@ extension Color {
     static let cassetteBrown = Color(red: 0.52, green: 0.35, blue: 0.25)
     static let cassetteGold = Color(red: 0.82, green: 0.68, blue: 0.42)
 
-    // Muted blues and greens for accents
-    static let cassetteTeal = Color(red: 0.35, green: 0.58, blue: 0.55)
+    // Muted blues and greens for accents - enhanced for dark mode
+    static let cassetteTeal = Color(red: 0.45, green: 0.68, blue: 0.65)
     static let cassetteBlue = Color(red: 0.42, green: 0.55, blue: 0.68)
     static let cassetteSage = Color(red: 0.58, green: 0.65, blue: 0.52)
 
-    // Text colors
-    static let cassetteTextDark = Color(red: 0.25, green: 0.22, blue: 0.18)
-    static let cassetteTextMedium = Color(red: 0.55, green: 0.52, blue: 0.48)
+    // Text colors - adaptive for dark mode
+    static let cassetteTextDark = Color.primary
+    static let cassetteTextMedium = Color.secondary
 }
 
 // Analog texture overlay for that vintage cassette feel
@@ -32,29 +33,44 @@ struct PaperTexture: View {
 
     var body: some View {
         Canvas { context, size in
+            // Guard against invalid dimensions
+            guard size.width > 0 && size.height > 0 && size.width.isFinite && size.height.isFinite else {
+                return
+            }
+
             var rng = SeededRandomNumberGenerator(seed: seed)
+            let area = size.width * size.height
+
             // Create subtle paper grain texture
-            for _ in 0..<Int(size.width * size.height / 100) {
+            let grainCount = max(0, Int(area / 100))
+            for _ in 0..<grainCount {
                 let x = Double.random(in: 0...size.width, using: &rng)
                 let y = Double.random(in: 0...size.height, using: &rng)
                 let brightness = Double.random(in: 0.8...1.2, using: &rng)
                 let alpha = Double.random(in: 0.1...0.3, using: &rng) * opacity
 
+                // Ensure alpha is valid
+                let finalAlpha = (alpha * brightness).isFinite ? alpha * brightness : 0.1
+
                 context.fill(
                     Path(ellipseIn: CGRect(x: x, y: y, width: 1, height: 1)),
-                    with: .color(.white.opacity(alpha * brightness))
+                    with: .color(.white.opacity(finalAlpha))
                 )
             }
 
             // Add some darker grain for depth
-            for _ in 0..<Int(size.width * size.height / 200) {
+            let darkGrainCount = max(0, Int(area / 200))
+            for _ in 0..<darkGrainCount {
                 let x = Double.random(in: 0...size.width, using: &rng)
                 let y = Double.random(in: 0...size.height, using: &rng)
                 let alpha = Double.random(in: 0.05...0.15, using: &rng) * opacity
 
+                // Ensure alpha is valid
+                let finalAlpha = alpha.isFinite ? alpha : 0.1
+
                 context.fill(
                     Path(ellipseIn: CGRect(x: x, y: y, width: 1, height: 1)),
-                    with: .color(.black.opacity(alpha))
+                    with: .color(.black.opacity(finalAlpha))
                 )
             }
         }
@@ -96,6 +112,12 @@ struct HandDrawnRoundedRectangle: Shape {
         let width = rect.width
         let height = rect.height
 
+        // Guard against invalid dimensions
+        guard width > 0 && height > 0 && width.isFinite && height.isFinite &&
+              cornerRadius.isFinite && roughness.isFinite else {
+            return path
+        }
+
         // Create much more organic, sketch-like shapes with natural imperfections
         let segments = Int.random(in: 16...24) // Variable segments for organic feel
         var points: [CGPoint] = []
@@ -105,10 +127,11 @@ struct HandDrawnRoundedRectangle: Shape {
             let progress = Double(i) / Double(segments)
             let angle = progress * 2 * .pi
 
-            // Create natural sketch-like irregularities
-            let primaryWobble = CGFloat.random(in: -roughness*1.5...roughness*1.5)
-            let secondaryWobble = CGFloat.random(in: -roughness*0.3...roughness*0.3)
-            let microDetail = CGFloat.random(in: -roughness*0.1...roughness*0.1)
+            // Create natural sketch-like irregularities with bounds checking
+            let safeRoughness = max(0, min(roughness, min(width, height) / 4))
+            let primaryWobble = CGFloat.random(in: -safeRoughness*1.5...safeRoughness*1.5)
+            let secondaryWobble = CGFloat.random(in: -safeRoughness*0.3...safeRoughness*0.3)
+            let microDetail = CGFloat.random(in: -safeRoughness*0.1...safeRoughness*0.1)
             let totalWobble = primaryWobble + secondaryWobble + microDetail
 
             // Create more rectangular base shape with organic corners
@@ -116,29 +139,35 @@ struct HandDrawnRoundedRectangle: Shape {
             var y: CGFloat
 
             // Determine which edge we're on and add organic variation
+            let safeCornerRadius = max(0, min(cornerRadius, min(width, height) / 2))
+
             if angle < .pi/4 || angle > 7 * .pi/4 { // Right edge region
-                x = width - cornerRadius + totalWobble
+                x = width - safeCornerRadius + totalWobble
                 let edgeProgress = angle < .pi/4 ? angle / (.pi/4) : (2 * .pi - angle) / (.pi/4)
-                y = cornerRadius + (height - 2*cornerRadius) * edgeProgress + CGFloat.random(in: -roughness*0.8...roughness*0.8)
+                y = safeCornerRadius + (height - 2*safeCornerRadius) * edgeProgress + CGFloat.random(in: -safeRoughness*0.8...safeRoughness*0.8)
             } else if angle < 3 * .pi/4 { // Top edge region
                 let edgeProgress = (angle - .pi/4) / (.pi/2)
-                x = width - cornerRadius - (width - 2*cornerRadius) * edgeProgress + CGFloat.random(in: -roughness*0.8...roughness*0.8)
-                y = cornerRadius + totalWobble
+                x = width - safeCornerRadius - (width - 2*safeCornerRadius) * edgeProgress + CGFloat.random(in: -safeRoughness*0.8...safeRoughness*0.8)
+                y = safeCornerRadius + totalWobble
             } else if angle < 5 * .pi/4 { // Left edge region
-                x = cornerRadius + totalWobble
+                x = safeCornerRadius + totalWobble
                 let edgeProgress = (angle - 3 * .pi/4) / (.pi/2)
-                y = height - cornerRadius - (height - 2*cornerRadius) * edgeProgress + CGFloat.random(in: -roughness*0.8...roughness*0.8)
+                y = height - safeCornerRadius - (height - 2*safeCornerRadius) * edgeProgress + CGFloat.random(in: -safeRoughness*0.8...safeRoughness*0.8)
             } else { // Bottom edge region
                 let edgeProgress = (angle - 5 * .pi/4) / (.pi/2)
-                x = cornerRadius + (width - 2*cornerRadius) * edgeProgress + CGFloat.random(in: -roughness*0.8...roughness*0.8)
-                y = height - cornerRadius + totalWobble
+                x = safeCornerRadius + (width - 2*safeCornerRadius) * edgeProgress + CGFloat.random(in: -safeRoughness*0.8...safeRoughness*0.8)
+                y = height - safeCornerRadius + totalWobble
             }
 
             // Ensure points stay within bounds with some tolerance for organic feel
-            x = max(-roughness*0.5, min(width + roughness*0.5, x))
-            y = max(-roughness*0.5, min(height + roughness*0.5, y))
+            x = max(-safeRoughness*0.5, min(width + safeRoughness*0.5, x))
+            y = max(-safeRoughness*0.5, min(height + safeRoughness*0.5, y))
 
-            points.append(CGPoint(x: x, y: y))
+            // Final validation to ensure no NaN values
+            if x.isFinite && y.isFinite {
+                points.append(CGPoint(x: x, y: y))
+            }
+
         }
 
         // Draw organic path with natural curves and line weight variation
@@ -154,11 +183,16 @@ struct HandDrawnRoundedRectangle: Shape {
 
                 if shouldCurve {
                     let controlOffset = CGFloat.random(in: -2...2)
-                    let controlPoint = CGPoint(
-                        x: (previousPoint.x + currentPoint.x) / 2 + controlOffset,
-                        y: (previousPoint.y + currentPoint.y) / 2 + controlOffset
-                    )
-                    path.addQuadCurve(to: currentPoint, control: controlPoint)
+                    let controlX = (previousPoint.x + currentPoint.x) / 2 + controlOffset
+                    let controlY = (previousPoint.y + currentPoint.y) / 2 + controlOffset
+
+                    // Validate control point
+                    if controlX.isFinite && controlY.isFinite {
+                        let controlPoint = CGPoint(x: controlX, y: controlY)
+                        path.addQuadCurve(to: currentPoint, control: controlPoint)
+                    } else {
+                        path.addLine(to: currentPoint)
+                    }
                 } else {
                     path.addLine(to: currentPoint)
                 }
@@ -167,11 +201,16 @@ struct HandDrawnRoundedRectangle: Shape {
             // Close with organic curve
             let firstPoint = points[0]
             let lastPoint = points[points.count-1]
-            let controlPoint = CGPoint(
-                x: (lastPoint.x + firstPoint.x) / 2 + CGFloat.random(in: -1...1),
-                y: (lastPoint.y + firstPoint.y) / 2 + CGFloat.random(in: -1...1)
-            )
-            path.addQuadCurve(to: firstPoint, control: controlPoint)
+            let controlX = (lastPoint.x + firstPoint.x) / 2 + CGFloat.random(in: -1...1)
+            let controlY = (lastPoint.y + firstPoint.y) / 2 + CGFloat.random(in: -1...1)
+
+            // Validate closing control point
+            if controlX.isFinite && controlY.isFinite {
+                let controlPoint = CGPoint(x: controlX, y: controlY)
+                path.addQuadCurve(to: firstPoint, control: controlPoint)
+            } else {
+                path.addLine(to: firstPoint)
+            }
         }
 
         return path
@@ -186,6 +225,12 @@ struct HandDrawnCircle: Shape {
         let center = CGPoint(x: rect.midX, y: rect.midY)
         let radius = min(rect.width, rect.height) / 2
 
+        // Guard against invalid dimensions
+        guard rect.width > 0 && rect.height > 0 && rect.width.isFinite && rect.height.isFinite &&
+              radius > 0 && radius.isFinite && roughness.isFinite else {
+            return path
+        }
+
         // Create organic, sketch-like circle with natural imperfections
         let points = Int.random(in: 18...28) // Variable point count for organic feel
         var circlePoints: [CGPoint] = []
@@ -194,16 +239,20 @@ struct HandDrawnCircle: Shape {
         for i in 0..<points {
             let angle = Double(i) * 2 * .pi / Double(points)
 
-            // Layer different types of irregularities like real hand drawing
-            let baseWobble = CGFloat.random(in: -roughness*2...roughness*2)
-            let tremor = CGFloat.random(in: -roughness*0.4...roughness*0.4) // Hand tremor effect
-            let pressure = CGFloat.random(in: -roughness*0.6...roughness*0.6) // Pressure variation
-            let totalRadius = radius + baseWobble + tremor + pressure
+            // Layer different types of irregularities like real hand drawing with bounds checking
+            let safeRoughness = max(0, min(roughness, radius / 2))
+            let baseWobble = CGFloat.random(in: -safeRoughness*2...safeRoughness*2)
+            let tremor = CGFloat.random(in: -safeRoughness*0.4...safeRoughness*0.4) // Hand tremor effect
+            let pressure = CGFloat.random(in: -safeRoughness*0.6...safeRoughness*0.6) // Pressure variation
+            let totalRadius = max(0, radius + baseWobble + tremor + pressure)
 
             let x = center.x + totalRadius * cos(angle)
             let y = center.y + totalRadius * sin(angle)
 
-            circlePoints.append(CGPoint(x: x, y: y))
+            // Validate point before adding
+            if x.isFinite && y.isFinite {
+                circlePoints.append(CGPoint(x: x, y: y))
+            }
         }
 
         // Draw with natural curves instead of straight lines
@@ -219,28 +268,42 @@ struct HandDrawnCircle: Shape {
 
                 if shouldCurve {
                     // Create control point with natural hand movement
-                    let controlDistance = CGFloat.random(in: -roughness*0.8...roughness*0.8)
+                    let safeRoughness = max(0, min(roughness, radius / 4))
+                    let controlDistance = CGFloat.random(in: -safeRoughness*0.8...safeRoughness*0.8)
                     let controlAngle = atan2(currentPoint.y - previousPoint.y, currentPoint.x - previousPoint.x) + .pi/2
-                    let controlPoint = CGPoint(
-                        x: (previousPoint.x + currentPoint.x) / 2 + controlDistance * cos(controlAngle),
-                        y: (previousPoint.y + currentPoint.y) / 2 + controlDistance * sin(controlAngle)
-                    )
-                    path.addQuadCurve(to: currentPoint, control: controlPoint)
+                    let controlX = (previousPoint.x + currentPoint.x) / 2 + controlDistance * cos(controlAngle)
+                    let controlY = (previousPoint.y + currentPoint.y) / 2 + controlDistance * sin(controlAngle)
+
+                    // Validate control point
+                    if controlX.isFinite && controlY.isFinite {
+                        let controlPoint = CGPoint(x: controlX, y: controlY)
+                        path.addQuadCurve(to: currentPoint, control: controlPoint)
+                    } else {
+                        path.addLine(to: currentPoint)
+                    }
                 } else {
                     path.addLine(to: currentPoint)
                 }
             }
 
             // Close the circle with a natural curve
-            let firstPoint = circlePoints[0]
-            let lastPoint = circlePoints[circlePoints.count-1]
-            let closeControlDistance = CGFloat.random(in: -roughness*0.5...roughness*0.5)
-            let closeControlAngle = atan2(firstPoint.y - lastPoint.y, firstPoint.x - lastPoint.x) + .pi/2
-            let closeControlPoint = CGPoint(
-                x: (lastPoint.x + firstPoint.x) / 2 + closeControlDistance * cos(closeControlAngle),
-                y: (lastPoint.y + firstPoint.y) / 2 + closeControlDistance * sin(closeControlAngle)
-            )
-            path.addQuadCurve(to: firstPoint, control: closeControlPoint)
+            if circlePoints.count > 1 {
+                let firstPoint = circlePoints[0]
+                let lastPoint = circlePoints[circlePoints.count-1]
+                let safeRoughness = max(0, min(roughness, radius / 4))
+                let closeControlDistance = CGFloat.random(in: -safeRoughness*0.5...safeRoughness*0.5)
+                let closeControlAngle = atan2(firstPoint.y - lastPoint.y, firstPoint.x - lastPoint.x) + .pi/2
+                let closeControlX = (lastPoint.x + firstPoint.x) / 2 + closeControlDistance * cos(closeControlAngle)
+                let closeControlY = (lastPoint.y + firstPoint.y) / 2 + closeControlDistance * sin(closeControlAngle)
+
+                // Validate closing control point
+                if closeControlX.isFinite && closeControlY.isFinite {
+                    let closeControlPoint = CGPoint(x: closeControlX, y: closeControlY)
+                    path.addQuadCurve(to: firstPoint, control: closeControlPoint)
+                } else {
+                    path.addLine(to: firstPoint)
+                }
+            }
         }
 
         return path
@@ -253,13 +316,31 @@ struct WobblyLine: Shape {
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
+
+        // Guard against invalid dimensions
+        guard rect.width > 0 && rect.height > 0 && rect.width.isFinite && rect.height.isFinite &&
+              roughness.isFinite else {
+            return path
+        }
+
         let points = Int.random(in: 12...18) // Variable segments for natural feel
         let step = rect.width / CGFloat(points)
 
-        // Start with natural imperfection
-        let startY = rect.midY + CGFloat.random(in: -roughness*1.2...roughness*1.2)
-        path.move(to: CGPoint(x: 0, y: startY))
+        // Ensure step is valid
+        guard step > 0 && step.isFinite else {
+            return path
+        }
 
+        // Start with natural imperfection
+        let safeRoughness = max(0, min(roughness, rect.height / 4))
+        let startY = rect.midY + CGFloat.random(in: -safeRoughness*1.2...safeRoughness*1.2)
+
+        // Validate starting point
+        guard startY.isFinite else {
+            return path
+        }
+
+        path.move(to: CGPoint(x: 0, y: startY))
         var previousY = startY
 
         for i in 1...points {
@@ -267,20 +348,31 @@ struct WobblyLine: Shape {
 
             // Create natural line variation with momentum
             let momentum = (previousY - rect.midY) * 0.3 // Carry some previous direction
-            let newVariation = CGFloat.random(in: -roughness*1.5...roughness*1.5)
-            let microTremor = CGFloat.random(in: -roughness*0.2...roughness*0.2)
+            let newVariation = CGFloat.random(in: -safeRoughness*1.5...safeRoughness*1.5)
+            let microTremor = CGFloat.random(in: -safeRoughness*0.2...safeRoughness*0.2)
             let y = rect.midY + momentum + newVariation + microTremor
+
+            // Validate y coordinate
+            guard y.isFinite else {
+                continue
+            }
 
             // Add natural curves instead of straight lines
             let shouldCurve = Bool.random() && i % 2 == 0
 
             if shouldCurve {
-                let controlY = (previousY + y) / 2 + CGFloat.random(in: -roughness*0.5...roughness*0.5)
+                let controlY = (previousY + y) / 2 + CGFloat.random(in: -safeRoughness*0.5...safeRoughness*0.5)
                 let controlX = x - step * 0.5 + CGFloat.random(in: -step*0.1...step*0.1)
-                path.addQuadCurve(
-                    to: CGPoint(x: x, y: y),
-                    control: CGPoint(x: controlX, y: controlY)
-                )
+
+                // Validate control point
+                if controlX.isFinite && controlY.isFinite {
+                    path.addQuadCurve(
+                        to: CGPoint(x: x, y: y),
+                        control: CGPoint(x: controlX, y: controlY)
+                    )
+                } else {
+                    path.addLine(to: CGPoint(x: x, y: y))
+                }
             } else {
                 path.addLine(to: CGPoint(x: x, y: y))
             }
@@ -294,6 +386,9 @@ struct WobblyLine: Shape {
 
 struct ContentView: View {
     @EnvironmentObject private var dataManager: DataManager
+    @EnvironmentObject private var calendarManager: CalendarManager
+    @EnvironmentObject private var focusManager: FocusManager
+    @EnvironmentObject private var notesManager: AppleNotesManager
     @StateObject private var viewModel: ChatViewModel
     @EnvironmentObject private var settingsManager: SettingsManager
 
@@ -303,7 +398,7 @@ struct ContentView: View {
     @State private var showingSettings = false
     @State private var showingVoiceRecording = false
     @State private var selectedMessage: ChatMessage?
-    @State private var keyboardHeight: CGFloat = 0
+
     @State private var handwritingMode = false
     @FocusState private var isInputFocused: Bool
     @State private var suggestionTopN: Int = 5
@@ -382,7 +477,26 @@ struct ContentView: View {
                         }
 
                     Spacer()
-                    // Mode label (tap to cycle)
+                    
+                    // Focus mode indicator
+                    if focusManager.currentFocusMode != .unknown {
+                        HStack(spacing: 4) {
+                            Image(systemName: focusIconForMode(focusManager.currentFocusMode))
+                                .font(.caption)
+                                .foregroundColor(.cassetteTeal)
+                            Text(focusManager.currentFocusMode.rawValue)
+                                .font(.caption2)
+                                .foregroundColor(.cassetteTextMedium)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(Color.cassetteTeal.opacity(0.1))
+                        )
+                    }
+                    
+                    // Mode label (tap to cycle, adapts to focus)
                     Button(action: { withAnimation(.easeInOut(duration: 0.3)) { cyclePersonalityMode() } }) {
                         Label(viewModel.currentMode.rawValue.lowercased(), systemImage: "brain.head.profile")
                             .font(.subheadline)
@@ -400,6 +514,19 @@ struct ContentView: View {
                                     .opacity(0.9)
                             )
                     }
+                        .contextMenu {
+                            Button(action: { Task { await addCurrentConversationToCalendar() } }) {
+                                Label("Add to Calendar", systemImage: "calendar.badge.plus")
+                            }
+                            
+                            Button(action: { Task { await loadSmartReferences() } }) {
+                                Label("Find Related Conversations", systemImage: "link")
+                            }
+                            
+                            Button(action: { exportCurrentConversationToNotes() }) {
+                                Label("Export to Notes", systemImage: "square.and.arrow.up")
+                            }
+                        }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -421,7 +548,7 @@ struct ContentView: View {
                         handleMessageAction(action, for: message)
                     },
                     shouldShowJumpButton: $shouldShowJumpButton,
-                    keyboardHeight: keyboardHeight
+                    keyboardHeight: 0
                 )
 
                 // Input Bar pinned with safe area inset to ensure visibility above keyboard/home indicator
@@ -447,6 +574,7 @@ struct ContentView: View {
                         .background(Color.cassetteCream)
                         .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: -2)
                     }
+                    .ignoresSafeArea(.keyboard, edges: .bottom) // Prevent keyboard interference
                 }
                     // Input bar moved into InputBar view
                 }
@@ -496,6 +624,12 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(settingsManager.appearanceMode.colorScheme)
+        .sheet(isPresented: $showingReferences) {
+            SmartReferencesView(references: currentReferences)
+        }
+        .sheet(isPresented: $showingShareSheet) {
+            ShareSheet(activityItems: shareItems)
+        }
         .sheet(isPresented: $showingQuickPrompts) {
             QuickPromptsView { prompt in
                 input = prompt
@@ -538,52 +672,11 @@ struct ContentView: View {
                 showingSettings = true
             }
             // App initialization complete
-            // Setup keyboard notifications
-            setupKeyboardNotifications()
-        }
-        .onDisappear {
-            // Remove keyboard notifications
-            NotificationCenter.default.removeObserver(self)
         }
     }
 
 
-    private func setupKeyboardNotifications() {
-        NotificationCenter.default.addObserver(
-            forName: UIResponder.keyboardWillShowNotification,
-            object: nil,
-            queue: .main
-        ) { notification in
-            guard let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
-                  let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double else {
-                return
-            }
 
-            let safeAreaBottom = UIApplication.shared.connectedScenes
-                .compactMap { $0 as? UIWindowScene }
-                .flatMap { $0.windows }
-                .first { $0.isKeyWindow }?.safeAreaInsets.bottom ?? 0
-            let adjustedHeight = max(0, keyboardFrame.height - safeAreaBottom)
-
-            withAnimation(.easeOut(duration: duration)) {
-                keyboardHeight = adjustedHeight
-            }
-        }
-
-        NotificationCenter.default.addObserver(
-            forName: UIResponder.keyboardWillHideNotification,
-            object: nil,
-            queue: .main
-        ) { notification in
-            guard let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double else {
-                return
-            }
-
-            withAnimation(.easeOut(duration: duration)) {
-                keyboardHeight = 0
-            }
-        }
-    }
 
     private func sendMessage() async {
         let message = input.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -622,11 +715,11 @@ struct ChatMessagesPane: View {
                                 Text("👋 Welcome to Mono")
                                     .organicFont(settingsManager.fontSize.titleFont)
                                     .fontWeight(.bold)
-                                    .foregroundColor(.cassetteTextDark)
+                                    .foregroundColor(.primary)
                                     .organicShadow()
                                 Text("Your minimalist AI companion. Tap the + button for quick prompts, or just start typing.")
                                     .font(settingsManager.fontSize.bodyFont)
-                                    .foregroundColor(.cassetteTextMedium)
+                                    .foregroundColor(.secondary)
                                     .multilineTextAlignment(.center)
                                     .padding(.horizontal, 40)
                                     .lineSpacing(2)
@@ -640,6 +733,10 @@ struct ChatMessagesPane: View {
                                 .background(
                                     HandDrawnRoundedRectangle(cornerRadius: 8, roughness: 4.0)
                                         .fill(Color.cassetteTeal.opacity(0.15))
+                                        .overlay(
+                                            HandDrawnRoundedRectangle(cornerRadius: 8, roughness: 4.0)
+                                                .stroke(Color.cassetteTeal.opacity(0.3), lineWidth: 1)
+                                        )
                                 )
                             }
                             .padding(.top, 80)
@@ -677,7 +774,7 @@ struct ChatMessagesPane: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 4)
-                .padding(.bottom, keyboardHeight > 0 ? 20 : 0)
+                .padding(.bottom, 20)
 
                 // Floating jump-to-bottom arrow
                 Button(action: {
@@ -738,7 +835,70 @@ struct ChatMessagesPane: View {
         isInputFocused = false
     }
 
+    // MARK: - Smart Cross-References
+    @State private var showingReferences = false
+    @State private var currentReferences: [IntelligentReference] = []
+    
+    // MARK: - Share Integration
+    @State private var showingShareSheet = false
+    @State private var shareItems: [Any] = []
+    
+    private func loadSmartReferences() async {
+        guard let currentId = dataManager.selectedConversationId else { return }
+        
+        // Generate new references if we have multiple conversations
+        if dataManager.conversations.count > 1 {
+            await dataManager.generateIntelligentReferences(for: currentId)
+        }
+        
+        let references = dataManager.getReferencesForConversation(currentId)
+        await MainActor.run {
+            currentReferences = references
+            if !references.isEmpty {
+                showingReferences = true
+            }
+        }
+    }
+    
+    // MARK: - Calendar Integration
+    private func addCurrentConversationToCalendar() async {
+        // Ensure permission
+        if !calendarManager.hasCalendarAccess {
+            let granted = await calendarManager.requestCalendarAccess()
+            if !granted { return }
+        }
+
+        guard let currentId = dataManager.selectedConversationId,
+              let conversation = dataManager.conversations.first(where: { $0.id == currentId })
+        else { return }
+
+        _ = await calendarManager.createEventFromConversation(conversation)
+    }
+    
+    // MARK: - Apple Notes Integration
+    private func exportCurrentConversationToNotes() {
+        guard let currentId = dataManager.selectedConversationId,
+              let conversation = dataManager.conversations.first(where: { $0.id == currentId })
+        else { return }
+        
+        let shareableItems = notesManager.createShareableContent(for: conversation)
+        shareItems = shareableItems
+        showingShareSheet = true
+    }
+
     private func cyclePersonalityMode() {
+        // Suggest focus-appropriate personality first
+        let suggestedMode = focusManager.getSuggestedPersonality()
+        if viewModel.currentMode != suggestedMode {
+            viewModel.currentMode = suggestedMode
+            
+            // Haptic feedback
+            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+            impactFeedback.impactOccurred()
+            return
+        }
+        
+        // Otherwise cycle through all modes
         let modes = PersonalityMode.allCases
         if let currentIndex = modes.firstIndex(of: viewModel.currentMode) {
             let nextIndex = (currentIndex + 1) % modes.count
@@ -747,6 +907,25 @@ struct ChatMessagesPane: View {
             // Haptic feedback
             let impactFeedback = UIImpactFeedbackGenerator(style: .light)
             impactFeedback.impactOccurred()
+        }
+    }
+    
+    private func focusIconForMode(_ mode: FocusManager.FocusMode) -> String {
+        switch mode {
+        case .work:
+            return "briefcase.fill"
+        case .personal:
+            return "house.fill"
+        case .doNotDisturb:
+            return "moon.fill"
+        case .sleep:
+            return "bed.double.fill"
+        case .fitness:
+            return "figure.run"
+        case .driving:
+            return "car.fill"
+        case .unknown:
+            return "questionmark.circle"
         }
     }
 
@@ -823,9 +1002,10 @@ struct MessageBubble: View {
                                         .fontWeight(.medium)
                                         .foregroundColor(message.isUser ? Color(white: 0.2) : Color.black)
                                     HStack(spacing: 2) {
-                                        ForEach(0..<20, id: \.self) { _ in
+                                        ForEach(0..<20, id: \.self) { index in
+                                            let height = CGFloat.random(in: 4...16)
                                             Rectangle().fill(Color.cassetteOrange.opacity(0.6))
-                                                .frame(width: 2, height: CGFloat.random(in: 4...16))
+                                                .frame(width: 2, height: height.isFinite ? height : 8)
                                         }
                                     }
                                 }
@@ -935,17 +1115,25 @@ struct QuickPromptsView: View {
     let onSelect: (String) -> Void
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var settingsManager: SettingsManager
+    @EnvironmentObject private var focusManager: FocusManager
 
-    private let prompts = [
-        "What am I missing?",
-        "Write it tighter.",
-        "Ask me questions.",
-        "Help me think through this.",
-        "Give me a fresh perspective.",
-        "What's the core issue?",
-        "Challenge my assumptions.",
-        "Make this actionable."
-    ]
+    private var prompts: [String] {
+        // Get context-aware prompts based on current focus
+        let contextualPrompts = focusManager.getContextualPrompts()
+        let generalPrompts = [
+            "What am I missing?",
+            "Write it tighter.",
+            "Ask me questions.",
+            "Help me think through this.",
+            "Give me a fresh perspective.",
+            "What's the core issue?",
+            "Challenge my assumptions.",
+            "Make this actionable."
+        ]
+        
+        // Combine contextual and general prompts
+        return contextualPrompts + generalPrompts
+    }
 
     var body: some View {
         NavigationView {
@@ -1000,10 +1188,41 @@ struct SettingsView: View {
     @State private var selectedLegalURL: URL? = nil
 
     @EnvironmentObject private var settingsManager: SettingsManager
+    @EnvironmentObject private var calendarManager: CalendarManager
 
     var body: some View {
         NavigationView {
             List {
+                // Upcoming calendar events
+                Section {
+                    if !calendarManager.hasCalendarAccess {
+                        Button(action: { Task { _ = await calendarManager.requestCalendarAccess() } }) {
+                            Label("Enable Calendar Access", systemImage: "calendar")
+                        }
+                    } else if calendarManager.upcomingEvents.isEmpty {
+                        Text("No events in the next 7 days")
+                            .foregroundColor(.cassetteTextMedium)
+                    } else {
+                        ForEach(Array(calendarManager.upcomingEvents.prefix(3)), id: \.eventIdentifier) { evt in
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "calendar")
+                                    .foregroundColor(.cassetteBlue)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(evt.title)
+                                        .foregroundColor(.cassetteTextDark)
+                                    Text(formatEventDateRange(evt))
+                                        .font(.caption)
+                                        .foregroundColor(.cassetteTextMedium)
+                                }
+                                Spacer()
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                } header: {
+                    Text("Upcoming")
+                        .foregroundColor(.cassetteTextMedium)
+                }
                 // Quick AI Setup Section - Compact and prominent
                 Section {
                     // Main AI Provider Card - More compact
@@ -1032,41 +1251,21 @@ struct SettingsView: View {
 
                                 Spacer()
 
-                                // Status indicators for all providers
+                                // Provider status indicators
                                 HStack(spacing: 4) {
-                                    ForEach(["groq", "openai", "gemini", "openrouter"], id: \.self) { providerId in
-                                        let provider = AIServiceManager.shared.getProvider(id: providerId)
-                                        Circle()
-                                            .fill(provider?.isConfigured == true ? Color.green : Color.gray.opacity(0.3))
-                                            .frame(width: 6, height: 6)
+                                    ForEach(["groq", "openai"], id: \.self) { providerId in
+                                        if let provider = AIServiceManager.shared.getProvider(id: providerId) {
+                                            Circle()
+                                                .fill(provider.isConfigured ? Color.green : Color.gray.opacity(0.3))
+                                                .frame(width: 6, height: 6)
+                                        }
                                     }
-                                }
-                            }
-
-                            // Quick provider switcher if multiple are configured
-                            if AIServiceManager.shared.getConfiguredProviders().count > 1 {
-                                HStack {
-                                    Text("Quick Switch:")
+                                    Text("\(AIServiceManager.shared.getConfiguredProviders().count) of 2 configured")
                                         .font(.caption2)
                                         .foregroundColor(.cassetteTextMedium)
-
-                                    ForEach(AIServiceManager.shared.getConfiguredProviders(), id: \.id) { provider in
-                                        Button(provider.name) {
-                                            AIServiceManager.shared.selectedProvider = provider.id
-                                        }
-                                        .font(.caption2)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 2)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .fill(AIServiceManager.shared.selectedProvider == provider.id ?
-                                                      Color.cassetteOrange.opacity(0.3) : Color.gray.opacity(0.1))
-                                        )
-                                    }
-
-                                    Spacer()
                                 }
                             }
+
                         }
                         .padding(.vertical, 4)
                     }
@@ -1074,7 +1273,7 @@ struct SettingsView: View {
                     Text("AI Configuration")
                         .foregroundColor(.cassetteTextMedium)
                 } footer: {
-                    Text("Supports Groq, OpenAI, Google Gemini, and OpenRouter. Tap to manage API keys and switch providers.")
+                    Text("Uses Groq AI or OpenAI for AI features. Tap to configure your API keys.")
                         .foregroundColor(.cassetteTextMedium)
                 }
 
@@ -1338,6 +1537,13 @@ struct SettingsView: View {
         }
     }
 
+    private func formatEventDateRange(_ event: EKEvent) -> String {
+        let fmt = DateFormatter()
+        fmt.dateStyle = .medium
+        fmt.timeStyle = .short
+        return "\(fmt.string(from: event.startDate)) – \(fmt.string(from: event.endDate))"
+    }
+
     private func getAppVersion() -> String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
@@ -1346,7 +1552,7 @@ struct SettingsView: View {
 
     private func clearAllData() {
         // Clear UserDefaults (but preserve settings)
-        let keysToPreserve = ["groq_api_key", "appearance_mode", "font_size", "notifications_enabled", "analytics_enabled", "crash_reporting_enabled"]
+        let keysToPreserve = ["groq_api_key", "appearance_mode", "font_size", "notifications_enabled", "crash_reporting_enabled"]
         let domain = Bundle.main.bundleIdentifier!
         let defaults = UserDefaults.standard
         let dictionary = defaults.persistentDomain(forName: domain) ?? [:]
@@ -1377,6 +1583,147 @@ struct SettingsView: View {
 
         dismiss()
     }
+}
+
+// MARK: - Smart References View
+struct SmartReferencesView: View {
+    let references: [IntelligentReference]
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var dataManager: DataManager
+    
+    var body: some View {
+        NavigationView {
+            List {
+                if references.isEmpty {
+                    Section {
+                        VStack(spacing: 16) {
+                            Image(systemName: "link.circle")
+                                .font(.system(size: 48))
+                                .foregroundColor(.cassetteTextMedium)
+                            
+                            Text("No Related Conversations Found")
+                                .font(.headline)
+                                .foregroundColor(.cassetteTextDark)
+                            
+                            Text("As you have more conversations, I'll find intelligent connections between them.")
+                                .font(.body)
+                                .foregroundColor(.cassetteTextMedium)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(.vertical, 40)
+                        .frame(maxWidth: .infinity)
+                    }
+                } else {
+                    Section {
+                        ForEach(references.sorted { $0.confidenceScore > $1.confidenceScore }) { reference in
+                            VStack(alignment: .leading, spacing: 12) {
+                                // Connection type and confidence
+                                HStack {
+                                    Text(reference.connectionType.capitalized)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.cassetteTeal)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(
+                                            Capsule()
+                                                .fill(Color.cassetteTeal.opacity(0.15))
+                                        )
+                                    
+                                    Spacer()
+                                    
+                                    Text("Confidence: \(Int(reference.confidenceScore * 100))%")
+                                        .font(.caption2)
+                                        .foregroundColor(.cassetteTextMedium)
+                                }
+                                
+                                // Quote from related conversation
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("From previous conversation:")
+                                        .font(.caption)
+                                        .foregroundColor(.cassetteTextMedium)
+                                    
+                                    Text("\"\(reference.relevantQuote)\"")
+                                        .font(.body)
+                                        .foregroundColor(.cassetteTextDark)
+                                        .italic()
+                                        .padding(.leading, 8)
+                                }
+                                
+                                // Context explanation
+                                Text(reference.contextSummary)
+                                    .font(.subheadline)
+                                    .foregroundColor(.cassetteTextMedium)
+                                
+                                // Action button
+                                Button(action: {
+                                    navigateToConversation(reference.sourceConversationId)
+                                }) {
+                                    HStack {
+                                        Image(systemName: "arrow.right.circle")
+                                        Text("View Conversation")
+                                    }
+                                    .font(.caption)
+                                    .foregroundColor(.cassetteOrange)
+                                }
+                            }
+                            .padding(.vertical, 8)
+                        }
+                    } header: {
+                        Text("Related Conversations")
+                            .foregroundColor(.cassetteTextMedium)
+                    } footer: {
+                        Text("These conversations contain relevant information based on AI analysis.")
+                            .foregroundColor(.cassetteTextMedium)
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .background(Color.cassetteWarmGray.opacity(0.1))
+            .navigationTitle("Smart References")
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                    .foregroundColor(.cassetteOrange)
+                }
+            }
+        }
+    }
+    
+    private func navigateToConversation(_ conversationId: UUID) {
+        dataManager.selectConversation(conversationId)
+        dismiss()
+    }
+}
+
+// MARK: - Share Sheet
+struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(
+            activityItems: activityItems,
+            applicationActivities: nil
+        )
+        
+        // Exclude some activities that don't make sense for conversations
+        controller.excludedActivityTypes = [
+            .assignToContact,
+            .saveToCameraRoll,
+            .postToFlickr,
+            .postToVimeo,
+            .postToTencentWeibo,
+            .postToWeibo
+        ]
+        
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - Enums

@@ -98,18 +98,31 @@ final class OpenAIServiceProvider: AIServiceProvider {
             "model": model,
             "messages": apiMessages,
             "temperature": temperature,
-            "max_tokens": 4096
+            "max_tokens": 4096,
+            "stream": false
         ]
-        
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        } catch {
+            throw AIServiceError.invalidResponse("Failed to encode request: \(error)")
+        }
+
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            
+
             if let httpResponse = response as? HTTPURLResponse {
+                let bodyText = String(data: data, encoding: .utf8) ?? ""
+
                 switch httpResponse.statusCode {
                 case 200:
                     break
+                case 400:
+                    if bodyText.contains("invalid_request_error") {
+                        throw AIServiceError.invalidResponse("Invalid request: \(bodyText)")
+                    } else {
+                        throw AIServiceError.invalidResponse("Bad request: \(bodyText)")
+                    }
                 case 401:
                     throw AIServiceError.invalidAPIKey(provider: name)
                 case 429:
@@ -119,21 +132,27 @@ final class OpenAIServiceProvider: AIServiceProvider {
                 case 500...599:
                     throw AIServiceError.serviceUnavailable(provider: name)
                 default:
-                    let bodyText = String(data: data, encoding: .utf8) ?? ""
                     throw AIServiceError.invalidResponse("HTTP \(httpResponse.statusCode): \(bodyText)")
                 }
             }
-            
+
+            // Debug: Print response for troubleshooting
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("OpenAI Response: \(responseString)")
+            }
+
             let decoded = try JSONDecoder().decode(OpenAIResponse.self, from: data)
-            
+
             guard let content = decoded.choices.first?.message.content, !content.isEmpty else {
                 throw AIServiceError.invalidResponse("Empty response from OpenAI")
             }
-            
+
             return content
-            
+
         } catch let error as AIServiceError {
             throw error
+        } catch let decodingError as DecodingError {
+            throw AIServiceError.invalidResponse("Failed to decode OpenAI response: \(decodingError)")
         } catch {
             throw AIServiceError.networkError(error)
         }

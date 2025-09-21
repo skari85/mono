@@ -53,7 +53,7 @@ class AudioManager: NSObject, ObservableObject {
     @Published var recordingLevel: Float = 0.0
     @Published var isReady = false
 
-    // Playback telemetry
+    // Playback logging (local only)
     @Published var playbackCurrentTime: TimeInterval = 0
     @Published var playbackDuration: TimeInterval = 0
 
@@ -87,7 +87,7 @@ class AudioManager: NSObject, ObservableObject {
             try audioSession.setCategory(
                 .playAndRecord,
                 mode: .voiceChat,
-                options: [.defaultToSpeaker, .allowBluetooth]
+                options: [.defaultToSpeaker, .allowBluetoothHFP]
             )
             try audioSession.setPreferredSampleRate(44100)
             try audioSession.setPreferredIOBufferDuration(0.01)

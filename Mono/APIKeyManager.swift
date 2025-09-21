@@ -8,6 +8,12 @@
 import Foundation
 import Security
 
+// MARK: - Notifications
+
+extension Notification.Name {
+    static let apiKeyDidChange = Notification.Name("apiKeyDidChange")
+}
+
 final class APIKeyManager {
     static let shared = APIKeyManager()
     private init() {}
@@ -35,6 +41,9 @@ final class APIKeyManager {
         guard status == errSecSuccess else {
             throw APIKeyError.storageError("Failed to store API key for \(provider)")
         }
+
+        // Notify that API key changed
+        NotificationCenter.default.post(name: .apiKeyDidChange, object: provider)
     }
     
     func getAPIKey(for provider: String) -> String? {
@@ -70,6 +79,9 @@ final class APIKeyManager {
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw APIKeyError.storageError("Failed to remove API key for \(provider)")
         }
+
+        // Notify that API key changed
+        NotificationCenter.default.post(name: .apiKeyDidChange, object: provider)
     }
     
     func hasAPIKey(for provider: String) -> Bool {

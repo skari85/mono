@@ -10,35 +10,54 @@ import Combine
 
 final class AIServiceManager: ObservableObject {
     static let shared = AIServiceManager()
-    
-    @Published var selectedProvider: String = UserDefaults.standard.string(forKey: "selected_ai_provider") ?? "groq" {
+
+    @Published var selectedProvider: String = "groq" {
         didSet {
             UserDefaults.standard.set(selectedProvider, forKey: "selected_ai_provider")
+            // Update legacy llmModel setting for backward compatibility
+            syncLegacyModelSetting()
         }
     }
-    
+
     @Published var availableProviders: [String: AIServiceProvider] = [:]
-    
+    @Published var providerConfigurationStates: [String: Bool] = [:]
+
     private let apiKeyManager = APIKeyManager.shared
-    
+
     private init() {
         registerProviders()
         apiKeyManager.migrateFromUserDefaults()
+        refreshProviderStates()
+        
+        // Load saved provider preference
+        if let savedProvider = UserDefaults.standard.string(forKey: "selected_ai_provider"),
+           availableProviders[savedProvider] != nil {
+            selectedProvider = savedProvider
+        }
+
+        // Listen for API key changes
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAPIKeyChange),
+            name: .apiKeyDidChange,
+            object: nil
+        )
     }
     
     // MARK: - Provider Registration
     
     private func registerProviders() {
-        // Register all available providers
+        // Register Groq and OpenAI providers
         let groqProvider = GroqServiceProvider()
         let openAIProvider = OpenAIServiceProvider()
-        let geminiProvider = GeminiServiceProvider()
-        let openRouterProvider = OpenRouterServiceProvider()
         
         availableProviders[groqProvider.id] = groqProvider
         availableProviders[openAIProvider.id] = openAIProvider
-        availableProviders[geminiProvider.id] = geminiProvider
-        availableProviders[openRouterProvider.id] = openRouterProvider
+        
+        print("🤖 Registered AI providers: \(availableProviders.keys.sorted())")
+        for (id, provider) in availableProviders {
+            print("   - \(id): \(provider.name) (configured: \(provider.isConfigured))")
+        }
     }
     
     // MARK: - Provider Access
@@ -111,12 +130,22 @@ final class AIServiceManager: ObservableObject {
     
     // MARK: - Model Selection
     
-    private func getSelectedModel(for providerId: String) -> String {
+    func getSelectedModel(for providerId: String) -> String {
         let key = "selected_model_\(providerId)"
         if let model = UserDefaults.standard.string(forKey: key) {
             return model
         }
-        
+
+        // For backward compatibility, check if this is the current provider and use legacy llmModel setting
+        if providerId == selectedProvider {
+            let legacyModel = UserDefaults.standard.string(forKey: "llm_model")
+            if let legacyModel = legacyModel,
+               let provider = availableProviders[providerId],
+               provider.availableModels.contains(where: { $0.id == legacyModel }) {
+                return legacyModel
+            }
+        }
+
         // Return default model for provider
         return availableProviders[providerId]?.availableModels.first?.id ?? ""
     }
@@ -136,6 +165,11 @@ final class AIServiceManager: ObservableObject {
     func setSelectedModel(_ modelId: String, for providerId: String) {
         let key = "selected_model_\(providerId)"
         UserDefaults.standard.set(modelId, forKey: key)
+
+        // For backward compatibility, also update the legacy llmModel setting if this is the current provider
+        if providerId == selectedProvider {
+            UserDefaults.standard.set(modelId, forKey: "llm_model")
+        }
     }
     
     func setSelectedTranscriptionModel(_ modelId: String, for providerId: String) {
@@ -158,6 +192,33 @@ final class AIServiceManager: ObservableObject {
         }
         
         return status
+    }
+
+    // MARK: - Legacy Compatibility
+
+    private func syncLegacyModelSetting() {
+        let currentModel = getSelectedModel(for: selectedProvider)
+        UserDefaults.standard.set(currentModel, forKey: "llm_model")
+    }
+
+    // MARK: - Provider State Management
+
+    @objc private func handleAPIKeyChange(_ notification: Notification) {
+        DispatchQueue.main.async {
+            self.refreshProviderStates()
+        }
+    }
+
+    func refreshProviderStates() {
+        var newStates: [String: Bool] = [:]
+        for (id, provider) in availableProviders {
+            newStates[id] = provider.isConfigured
+        }
+        providerConfigurationStates = newStates
+    }
+
+    func isProviderConfigured(_ providerId: String) -> Bool {
+        return providerConfigurationStates[providerId] ?? false
     }
 }
 

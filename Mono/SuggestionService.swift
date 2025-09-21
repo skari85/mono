@@ -8,9 +8,38 @@ final class SuggestionService {
     enum SuggestionError: Error { case missingAPIKey, invalidResponse }
 
     func suggest(query: String, topN: Int = 5, contextHints: String? = nil) async throws -> String {
-        guard let apiKey = UserDefaults.standard.string(forKey: "groq_api_key"), !apiKey.isEmpty else {
-            throw SuggestionError.missingAPIKey
+        // Try to get API key from the current selected provider
+        let aiServiceManager = AIServiceManager.shared
+        
+        // First try the current provider if it supports chat completion
+        if let currentProvider = aiServiceManager.currentProvider,
+           currentProvider.supportedCapabilities.contains(.chatCompletion),
+           currentProvider.isConfigured {
+            
+            if currentProvider.id == "groq" {
+                // Use Groq API directly for suggestions
+                guard let apiKey = APIKeyManager.shared.getAPIKey(for: "groq") else {
+                    throw SuggestionError.missingAPIKey
+                }
+                return try await makeGroqSuggestionRequest(apiKey: apiKey, query: query, topN: topN, contextHints: contextHints)
+            }
         }
+        
+        // Fallback: try to find any configured provider that supports chat
+        let configuredProviders = aiServiceManager.getConfiguredProviders()
+        for provider in configuredProviders {
+            if provider.supportedCapabilities.contains(.chatCompletion) && provider.id == "groq" {
+                guard let apiKey = APIKeyManager.shared.getAPIKey(for: provider.id) else {
+                    continue
+                }
+                return try await makeGroqSuggestionRequest(apiKey: apiKey, query: query, topN: topN, contextHints: contextHints)
+            }
+        }
+        
+        throw SuggestionError.missingAPIKey
+    }
+    
+    private func makeGroqSuggestionRequest(apiKey: String, query: String, topN: Int, contextHints: String?) async throws -> String {
 
         let url = URL(string: "https://api.groq.com/openai/v1/chat/completions")!
         var request = URLRequest(url: url)
@@ -18,7 +47,9 @@ final class SuggestionService {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let modelId = UserDefaults.standard.string(forKey: "llm_model") ?? "llama-3.1-8b-instant"
+        // Get the selected model for Groq provider
+        let aiServiceManager = AIServiceManager.shared
+        let modelId = aiServiceManager.getSelectedModel(for: "groq")
 
         let systemPrompt = """
         You are a practical recommendation engine. Given a user query, produce a concise list of the top items with short reasons based on widely known facts. If you are not confident, say so.

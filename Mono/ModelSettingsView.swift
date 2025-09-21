@@ -214,7 +214,6 @@ struct ModelSettingsView: View {
         case "groq": return "bolt.fill"
         case "openai": return "brain.head.profile"
         case "gemini": return "sparkles"
-        case "openrouter": return "arrow.triangle.swap"
         default: return "cpu.fill"
         }
     }
@@ -224,7 +223,6 @@ struct ModelSettingsView: View {
         case "groq": return .cassetteOrange
         case "openai": return .cassetteBlue
         case "gemini": return .cassetteTeal
-        case "openrouter": return .cassetteSage
         default: return .cassetteTextMedium
         }
     }
