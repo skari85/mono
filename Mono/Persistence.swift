@@ -60,10 +60,10 @@ struct AppDataSnapshot: Codable {
     var conversations: [SavedConversationDTO]? // optional for backward compatibility
     var thoughts: [ThoughtDTO]? // backward compatible
     var tasks: [TaskItemDTO]? // optional for backward compatibility
-    
+
     // Smart Memory System
     var intelligentReferences: [IntelligentReferenceDTO]? // new features
-    var conversationInsights: [ConversationInsightDTO]? // new features
+    // conversationInsights removed - using Memory Palace system instead
 }
 
 // MARK: - Smart Memory DTOs
@@ -78,16 +78,7 @@ struct IntelligentReferenceDTO: Codable {
     let createdAt: Date
 }
 
-struct ConversationInsightDTO: Codable {
-    let id: UUID
-    let conversationId: UUID
-    let insightType: String
-    let title: String
-    let description: String
-    let actionable: Bool
-    let priority: Int
-    let createdAt: Date
-}
+// ConversationInsightDTO removed - using Memory Palace system instead
 
 enum PersistencePaths {
     static func documentsURL(filename: String) -> URL {
@@ -192,31 +183,6 @@ extension IntelligentReference {
     }
 }
 
-extension ConversationInsight {
-    func toDTO() -> ConversationInsightDTO {
-        ConversationInsightDTO(
-            id: id,
-            conversationId: conversationId,
-            insightType: insightType.rawValue,
-            title: title,
-            description: description,
-            actionable: actionable,
-            priority: priority,
-            createdAt: createdAt
-        )
-    }
-    
-    static func fromDTO(_ dto: ConversationInsightDTO) -> ConversationInsight {
-        ConversationInsight(
-            conversationId: dto.conversationId,
-            insightType: ConversationInsight.InsightType(rawValue: dto.insightType) ?? .pattern,
-            title: dto.title,
-            description: dto.description,
-            actionable: dto.actionable,
-            priority: dto.priority,
-            createdAt: dto.createdAt
-        )
-    }
-}
+// ConversationInsight extension removed - using Memory Palace system instead
 
 

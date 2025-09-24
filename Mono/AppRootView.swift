@@ -21,12 +21,22 @@ struct AppRootView: View {
                     ContentView()
                         .tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right.fill") }
                         .tag(0)
+
+                    IntelligentSearchView()
+                        .tabItem { Label("Search", systemImage: "magnifyingglass") }
+                        .tag(1)
+
+                    MemoryPalaceView()
+                        .tabItem { Label("Memory", systemImage: "brain.head.profile") }
+                        .tag(2)
+
                     SummarizeView()
                         .tabItem { Label("Summarize", systemImage: "list.bullet.rectangle.fill") }
-                        .tag(1)
+                        .tag(3)
+
                     TasksView()
                         .tabItem { Label("Tasks", systemImage: "checklist") }
-                        .tag(2)
+                        .tag(4)
                 }
                 .environmentObject(DataManager.shared)
                 .onReceive(NotificationCenter.default.publisher(for: .summarizeSendToChat)) { note in
@@ -45,11 +55,22 @@ struct AppRootView: View {
             OnboardingView()
         }
                 .onReceive(NotificationCenter.default.publisher(for: .presentSummarizeOverlay)) { _ in
-                    selectedTab = 1
+                    selectedTab = 3  // Updated for new tab order
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .startSummarizeAutoRecord)) { _ in
-                    selectedTab = 1
+                    selectedTab = 3  // Updated for new tab order
                     // let SummarizeView handle auto-record onAppear
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .switchToMemoryPalace)) { _ in
+                    selectedTab = 2  // Memory Palace tab
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .switchToSearchWithQuery)) { notification in
+                    selectedTab = 1  // Search tab
+                    // Pass the search query to the search view
+                    if let query = notification.object as? String {
+                        // Store the query for the search view to pick up
+                        UserDefaults.standard.set(query, forKey: "pendingSearchQuery")
+                    }
                 }
 
         .preferredColorScheme(settingsManager.appearanceMode.colorScheme)

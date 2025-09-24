@@ -146,10 +146,28 @@ class ChatViewModel: ObservableObject {
                 .suffix(10)
         }
 
+        // Enhance system prompt with calendar context if available
+        let enhancedSystemPrompt = await buildEnhancedSystemPrompt(basePrompt: currentMode.systemPrompt, userInput: input)
+
         return try await AIServiceManager.shared.sendChatMessage(
             messages: Array(history),
-            systemPrompt: currentMode.systemPrompt,
+            systemPrompt: enhancedSystemPrompt,
             temperature: 0.7
         )
+    }
+    
+    private func buildEnhancedSystemPrompt(basePrompt: String, userInput: String) async -> String {
+        var enhancedPrompt = basePrompt
+        
+        // Add calendar context if user is asking about calendar-related topics
+        let calendarKeywords = ["calendar", "schedule", "event", "meeting", "appointment", "today", "tomorrow", "next week", "time", "when"]
+        let isCalendarRelated = calendarKeywords.contains { userInput.lowercased().contains($0) }
+        
+        if isCalendarRelated && CalendarManager.shared.hasCalendarAccess {
+            let calendarSummary = CalendarManager.shared.generateCalendarSummaryForAI()
+            enhancedPrompt += "\n\nCalendar Context:\n\(calendarSummary)"
+        }
+        
+        return enhancedPrompt
     }
 }

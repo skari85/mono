@@ -2,6 +2,12 @@ import SwiftUI
 import EventKit
 import SwiftData
 
+// MARK: - Notification Names
+extension Notification.Name {
+    static let switchToMemoryPalace = Notification.Name("switchToMemoryPalace")
+    static let switchToSearchWithQuery = Notification.Name("switchToSearchWithQuery")
+}
+
 // Warm, analog color palette inspired by vintage cassette aesthetics
 extension Color {
     // Warm, muted background colors
@@ -518,11 +524,19 @@ struct ContentView: View {
                             Button(action: { Task { await addCurrentConversationToCalendar() } }) {
                                 Label("Add to Calendar", systemImage: "calendar.badge.plus")
                             }
-                            
+
                             Button(action: { Task { await loadSmartReferences() } }) {
                                 Label("Find Related Conversations", systemImage: "link")
                             }
-                            
+
+                            Button(action: { showMemoryPalace() }) {
+                                Label("View in Memory Palace", systemImage: "brain.head.profile")
+                            }
+
+                            Button(action: { searchInConversation() }) {
+                                Label("Search This Conversation", systemImage: "magnifyingglass")
+                            }
+
                             Button(action: { exportCurrentConversationToNotes() }) {
                                 Label("Export to Notes", systemImage: "square.and.arrow.up")
                             }
@@ -687,9 +701,6 @@ struct ContentView: View {
                 isInputFocused = false
             }
 
-            // Small delay to let UI update
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-
             await viewModel.sendMessage(message, handwritingMode: handwritingMode)
         }
     }
@@ -717,18 +728,33 @@ struct ChatMessagesPane: View {
                                     .fontWeight(.bold)
                                     .foregroundColor(.primary)
                                     .organicShadow()
-                                Text("Your minimalist AI companion. Tap the + button for quick prompts, or just start typing.")
+                                Text("Your privacy-first AI companion with smart memory and Apple integration.")
                                     .font(settingsManager.fontSize.bodyFont)
                                     .foregroundColor(.secondary)
                                     .multilineTextAlignment(.center)
                                     .padding(.horizontal, 40)
                                     .lineSpacing(2)
-                                VStack(spacing: 8) {
-                                    Text("💡 Tip: Tap the mode name at the top to switch personalities")
-                                        .font(settingsManager.fontSize.captionFont)
-                                        .foregroundColor(.cassetteTeal)
-                                        .padding(.horizontal, 20)
-                                        .padding(.vertical, 8)
+                                
+                                VStack(spacing: 12) {
+                                    VStack(spacing: 8) {
+                                        Text("🧠 NEW: Smart cross-references find connections between conversations")
+                                            .font(settingsManager.fontSize.captionFont)
+                                            .foregroundColor(.cassetteTeal)
+                                            .padding(.horizontal, 20)
+                                            .padding(.vertical, 6)
+                                        
+                                        Text("🍎 NEW: Calendar, Notes, and Focus Mode integration")
+                                            .font(settingsManager.fontSize.captionFont)
+                                            .foregroundColor(.cassetteTeal)
+                                            .padding(.horizontal, 20)
+                                            .padding(.vertical, 6)
+                                        
+                                        Text("💡 Tip: Tap the mode name at the top to switch personalities")
+                                            .font(settingsManager.fontSize.captionFont)
+                                            .foregroundColor(.orange)
+                                            .padding(.horizontal, 20)
+                                            .padding(.vertical, 6)
+                                    }
                                 }
                                 .background(
                                     HandDrawnRoundedRectangle(cornerRadius: 8, roughness: 4.0)
@@ -740,7 +766,12 @@ struct ChatMessagesPane: View {
                                 )
                             }
                             .padding(.top, 80)
-                            .padding(.bottom, 40)
+                            .padding(.bottom, 20)
+                            
+                            // Calendar Integration Widget
+                            CalendarWidget()
+                                .padding(.horizontal, 20)
+                                .padding(.bottom, 20)
                         }
 
                         ForEach(messages) { message in
@@ -804,7 +835,10 @@ struct ChatMessagesPane: View {
             }
             .onTapGesture {
                 shouldShowJumpButton = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { shouldShowJumpButton = true }
+                Task {
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                    await MainActor.run { shouldShowJumpButton = true }
+                }
             }
         }
     }
@@ -859,7 +893,21 @@ struct ChatMessagesPane: View {
             }
         }
     }
-    
+
+    private func showMemoryPalace() {
+        // Switch to Memory Palace tab
+        NotificationCenter.default.post(name: .switchToMemoryPalace, object: nil)
+    }
+
+    private func searchInConversation() {
+        // Switch to Search tab with current conversation context
+        guard let currentId = dataManager.selectedConversationId,
+              let conversation = dataManager.conversations.first(where: { $0.id == currentId }) else { return }
+
+        let searchQuery = "conversation:\(conversation.title)"
+        NotificationCenter.default.post(name: .switchToSearchWithQuery, object: searchQuery)
+    }
+
     // MARK: - Calendar Integration
     private func addCurrentConversationToCalendar() async {
         // Ensure permission
@@ -1120,6 +1168,10 @@ struct QuickPromptsView: View {
     private var prompts: [String] {
         // Get context-aware prompts based on current focus
         let contextualPrompts = focusManager.getContextualPrompts()
+        
+        // Get calendar-aware prompts
+        let calendarPrompts = generateCalendarPrompts()
+        
         let generalPrompts = [
             "What am I missing?",
             "Write it tighter.",
@@ -1131,8 +1183,39 @@ struct QuickPromptsView: View {
             "Make this actionable."
         ]
         
-        // Combine contextual and general prompts
-        return contextualPrompts + generalPrompts
+        // Combine all prompts
+        return calendarPrompts + contextualPrompts + generalPrompts
+    }
+    
+    private func generateCalendarPrompts() -> [String] {
+        let calendarManager = CalendarManager.shared
+        guard calendarManager.hasCalendarAccess else { return [] }
+        
+        var prompts: [String] = []
+        
+        // Today's events prompts
+        if !calendarManager.todaysEvents.isEmpty {
+            if let nextEvent = calendarManager.todaysEvents.first {
+                prompts.append("Help me prepare for '\(nextEvent.title ?? "my next event")'")
+            }
+            prompts.append("Review my schedule for today")
+        }
+        
+        // Upcoming events prompts
+        if !calendarManager.upcomingEvents.isEmpty {
+            prompts.append("What should I know about my upcoming events?")
+            if let nextEvent = calendarManager.upcomingEvents.first {
+                prompts.append("Discuss my '\(nextEvent.title ?? "upcoming event")' meeting")
+            }
+        }
+        
+        // General calendar prompts
+        if calendarManager.hasCalendarAccess {
+            prompts.append("Add this to my calendar")
+            prompts.append("What's my schedule like?")
+        }
+        
+        return prompts
     }
 
     var body: some View {
@@ -1184,6 +1267,7 @@ struct SettingsView: View {
     @State private var apiKey = ""
     @State private var showingResetAlert = false
     @State private var showingAbout = false
+    @State private var showingWelcome = false
     @State private var showingLegalSafari = false
     @State private var selectedLegalURL: URL? = nil
 
@@ -1353,6 +1437,51 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text("App Settings")
+                        .foregroundColor(.cassetteTextMedium)
+                }
+                
+                // Help & Tutorial Section
+                Section {
+                    NavigationLink(destination: TutorialGuideView()) {
+                        HStack {
+                            Image(systemName: "book.fill")
+                                .foregroundColor(.cassetteTeal)
+                                .frame(width: 20)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("How to Use Mono")
+                                    .font(.subheadline)
+                                    .foregroundColor(.cassetteTextDark)
+                                
+                                Text("Complete guide to all features")
+                                    .font(.caption)
+                                    .foregroundColor(.cassetteTextMedium)
+                            }
+                        }
+                    }
+                    
+                    Button(action: { showingWelcome = true }) {
+                        HStack {
+                            Image(systemName: "hand.wave.fill")
+                                .foregroundColor(.orange)
+                                .frame(width: 20)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Welcome Tour")
+                                    .font(.subheadline)
+                                    .foregroundColor(.cassetteTextDark)
+                                
+                                Text("Replay the welcome experience")
+                                    .font(.caption)
+                                    .foregroundColor(.cassetteTextMedium)
+                            }
+                            
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                } header: {
+                    Text("Help & Learning")
                         .foregroundColor(.cassetteTextMedium)
                 }
 
@@ -1534,6 +1663,9 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showingAbout) {
             AboutView()
+        }
+        .sheet(isPresented: $showingWelcome) {
+            WelcomeMainView()
         }
     }
 

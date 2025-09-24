@@ -29,24 +29,7 @@ struct IntelligentReference: Identifiable, Codable {
     }
 }
 
-struct ConversationInsight: Identifiable, Codable {
-    var id = UUID()
-    let conversationId: UUID
-    let insightType: InsightType
-    let title: String
-    let description: String
-    let actionable: Bool
-    let priority: Int
-    let createdAt: Date
-    
-    enum InsightType: String, Codable, CaseIterable {
-        case pattern = "pattern"
-        case decision = "decision"
-        case followUp = "follow_up"
-        case connection = "connection"
-        case trend = "trend"
-    }
-}
+// ConversationInsight moved to MemoryPalaceManager.swift
 
 // MARK: - Simple In-Memory Data Manager
 class DataManager: ObservableObject {
@@ -64,7 +47,6 @@ class DataManager: ObservableObject {
     
     // Smart Cross-References
     @Published var intelligentReferences: [IntelligentReference] = []
-    @Published var conversationInsights: [ConversationInsight] = []
 
     private init() {
         print("🔧 DataManager initialized")
@@ -91,6 +73,15 @@ class DataManager: ObservableObject {
         // Also reflect in selected conversation (if any)
         if let sel = selectedConversationId, let idx = conversations.firstIndex(where: { $0.id == sel }) {
             conversations[idx].messages = chatMessages
+
+            // Process conversation for Memory Palace if it has enough content
+            let conversation = conversations[idx]
+            if conversation.messages.count >= 3 && !message.isUser {
+                // Process AI responses for memory palace (async)
+                Task {
+                    await MemoryPalaceManager.shared.processConversationForMemoryNodes(conversation)
+                }
+            }
         }
         save()
         print("💬 Added chat message: \(message.text)")
@@ -247,8 +238,7 @@ class DataManager: ObservableObject {
             conversations: conversations.map { $0.toDTO() },
             thoughts: thoughts.map { $0.toDTO() },
             tasks: tasks.map { $0.toDTO() },
-            intelligentReferences: intelligentReferences.map { $0.toDTO() },
-            conversationInsights: conversationInsights.map { $0.toDTO() }
+            intelligentReferences: intelligentReferences.map { $0.toDTO() }
         )
     }
 
@@ -261,7 +251,6 @@ class DataManager: ObservableObject {
         thoughts = (snap.thoughts ?? []).map { Thought.fromDTO($0) }
         tasks = (snap.tasks ?? []).map { TaskItem.fromDTO($0) }
         intelligentReferences = (snap.intelligentReferences ?? []).map { IntelligentReference.fromDTO($0) }
-        conversationInsights = (snap.conversationInsights ?? []).map { ConversationInsight.fromDTO($0) }
     }
 
     func save() {
@@ -292,6 +281,14 @@ class DataManager: ObservableObject {
     }
     
     // MARK: - Smart Cross-Referencing
+
+    func getSmartReferences(for conversationId: UUID) -> [IntelligentReference] {
+        return intelligentReferences.filter { $0.sourceConversationId == conversationId }
+    }
+
+    func getAllSmartReferences() -> [IntelligentReference] {
+        return intelligentReferences
+    }
     
     func generateIntelligentReferences(for conversationId: UUID) async {
         guard let currentConversation = conversations.first(where: { $0.id == conversationId }) else { return }

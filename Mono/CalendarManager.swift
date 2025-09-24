@@ -10,14 +10,186 @@ import EventKit
 
 final class CalendarManager: ObservableObject {
     static let shared = CalendarManager()
-
+    
     private let eventStore = EKEventStore()
     @Published var hasCalendarAccess = false
     @Published var upcomingEvents: [EKEvent] = []
-
+    @Published var todaysEvents: [EKEvent] = []
+    @Published var discussableEvents: [CalendarEventForAI] = []
+    
     private init() {
         checkCalendarAccess()
-        Task { await loadUpcomingEvents() }
+        Task { 
+            await loadUpcomingEvents()
+            await loadTodaysEvents()
+            await prepareEventsForAI()
+        }
+        
+        // Start periodic refresh every 5 minutes
+        startPeriodicRefresh()
+    }
+    
+    // MARK: - Event Data for AI Discussion
+    
+    struct CalendarEventForAI: Identifiable, Codable {
+        let id: String
+        let title: String
+        let startDate: Date
+        let endDate: Date
+        let location: String?
+        let notes: String?
+        let attendees: [String]
+        let isAllDay: Bool
+        let timeUntilEvent: String
+        let context: String // "upcoming", "today", "past"
+        
+        var discussionPrompt: String {
+            let timeInfo = isAllDay ? "All day" : "\(DateFormatter.shortTime.string(from: startDate)) - \(DateFormatter.shortTime.string(from: endDate))"
+            let locationInfo = location.map { " at \($0)" } ?? ""
+            let attendeeInfo = attendees.isEmpty ? "" : " with \(attendees.joined(separator: ", "))"
+            
+            return "I have an event '\(title)' on \(DateFormatter.medium.string(from: startDate)) \(timeInfo)\(locationInfo)\(attendeeInfo). \(notes ?? "")"
+        }
+    }
+    
+    @MainActor
+    func loadTodaysEvents() async {
+        guard hasCalendarAccess else { return }
+        
+        let calendar = Calendar.current
+        let today = Date()
+        let startOfDay = calendar.startOfDay(for: today)
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? today
+        
+        let predicate = eventStore.predicateForEvents(withStart: startOfDay, end: endOfDay, calendars: nil)
+        todaysEvents = eventStore.events(matching: predicate).sorted { $0.startDate < $1.startDate }
+    }
+    
+    @MainActor
+    func prepareEventsForAI() async {
+        guard hasCalendarAccess else { return }
+        
+        let now = Date()
+        let calendar = Calendar.current
+        
+        // Get events from yesterday to next week
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: now) ?? now
+        let nextWeek = calendar.date(byAdding: .day, value: 7, to: now) ?? now
+        
+        let predicate = eventStore.predicateForEvents(withStart: yesterday, end: nextWeek, calendars: nil)
+        let allEvents = eventStore.events(matching: predicate)
+        
+        discussableEvents = allEvents.compactMap { event in
+            let context: String
+            if calendar.isDateInToday(event.startDate) {
+                context = "today"
+            } else if event.startDate > now {
+                context = "upcoming"
+            } else {
+                context = "past"
+            }
+            
+            let timeUntil: String
+            if event.startDate > now {
+                let interval = event.startDate.timeIntervalSince(now)
+                timeUntil = formatTimeInterval(interval)
+            } else if event.endDate > now {
+                timeUntil = "happening now"
+            } else {
+                let interval = now.timeIntervalSince(event.endDate)
+                timeUntil = "\(formatTimeInterval(interval)) ago"
+            }
+            
+            return CalendarEventForAI(
+                id: event.eventIdentifier ?? UUID().uuidString,
+                title: event.title ?? "Untitled Event",
+                startDate: event.startDate,
+                endDate: event.endDate,
+                location: event.location,
+                notes: event.notes,
+                attendees: event.attendees?.compactMap { $0.name } ?? [],
+                isAllDay: event.isAllDay,
+                timeUntilEvent: timeUntil,
+                context: context
+            )
+        }.sorted { $0.startDate < $1.startDate }
+    }
+    
+    private func formatTimeInterval(_ interval: TimeInterval) -> String {
+        let hours = Int(interval) / 3600
+        let minutes = Int(interval) % 3600 / 60
+        
+        if hours > 24 {
+            let days = hours / 24
+            return "\(days) day\(days == 1 ? "" : "s")"
+        } else if hours > 0 {
+            return "\(hours) hour\(hours == 1 ? "" : "s")"
+        } else {
+            return "\(minutes) minute\(minutes == 1 ? "" : "s")"
+        }
+    }
+    
+    // MARK: - AI Integration Methods
+    
+    func getEventsForAIDiscussion(context: String = "all") -> [CalendarEventForAI] {
+        switch context {
+        case "today":
+            return discussableEvents.filter { $0.context == "today" }
+        case "upcoming":
+            return discussableEvents.filter { $0.context == "upcoming" }
+        case "past":
+            return discussableEvents.filter { $0.context == "past" }
+        default:
+            return discussableEvents
+        }
+    }
+    
+    func generateCalendarSummaryForAI() -> String {
+        let todayCount = discussableEvents.filter { $0.context == "today" }.count
+        let upcomingCount = discussableEvents.filter { $0.context == "upcoming" }.count
+        
+        var summary = "Calendar Summary:\n"
+        summary += "• Today: \(todayCount) event\(todayCount == 1 ? "" : "s")\n"
+        summary += "• Upcoming: \(upcomingCount) event\(upcomingCount == 1 ? "" : "s")\n\n"
+        
+        // Add today's events
+        let todayEvents = getEventsForAIDiscussion(context: "today")
+        if !todayEvents.isEmpty {
+            summary += "Today's Events:\n"
+            for event in todayEvents.prefix(3) {
+                let timeInfo = event.isAllDay ? "All day" : DateFormatter.shortTime.string(from: event.startDate)
+                summary += "• \(timeInfo): \(event.title)\n"
+            }
+            summary += "\n"
+        }
+        
+        // Add upcoming events
+        let upcomingEvents = getEventsForAIDiscussion(context: "upcoming")
+        if !upcomingEvents.isEmpty {
+            summary += "Next 3 Upcoming:\n"
+            for event in upcomingEvents.prefix(3) {
+                summary += "• \(DateFormatter.shortDate.string(from: event.startDate)): \(event.title) (\(event.timeUntilEvent))\n"
+            }
+        }
+        
+        return summary
+    }
+    
+    // MARK: - Refresh and Sync
+    
+    func refreshAllCalendarData() async {
+        guard hasCalendarAccess else { return }
+        await loadUpcomingEvents()
+        await loadTodaysEvents()
+        await prepareEventsForAI()
+    }
+    
+    func startPeriodicRefresh() {
+        Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { _ in // Refresh every 5 minutes
+            Task {
+                await self.refreshAllCalendarData()
+            }
+        }
     }
 
     // MARK: - Calendar Access
@@ -161,6 +333,28 @@ struct EventSuggestion {
     let notes: String
     let startDate: Date
     let endDate: Date
+}
+
+// MARK: - DateFormatter Extensions
+
+extension DateFormatter {
+    static let shortTime: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter
+    }()
+    
+    static let shortDate: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        return formatter
+    }()
+    
+    static let medium: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter
+    }()
 }
 
 
