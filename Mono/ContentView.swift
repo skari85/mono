@@ -1086,14 +1086,9 @@ struct ChatMessagesPane: View {
     private func safeHapticFeedback() {
         // Safe haptic feedback that won't cause AVHapticClient errors
         DispatchQueue.main.async {
-            do {
-                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                impactFeedback.prepare()
-                impactFeedback.impactOccurred()
-            } catch {
-                // Silently ignore haptic feedback errors
-                print("Haptic feedback unavailable: \(error)")
-            }
+            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+            impactFeedback.prepare()
+            impactFeedback.impactOccurred()
         }
     }
 

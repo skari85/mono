@@ -38,6 +38,9 @@ class AppleNotesManager: ObservableObject {
         case .authorized:
             hasNotesAccess = true
             loadNotes()
+        case .fullAccess:
+            hasNotesAccess = true
+            loadNotes()
         @unknown default:
             hasNotesAccess = false
         }
