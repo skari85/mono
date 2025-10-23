@@ -220,75 +220,123 @@ class ChatViewModel: ObservableObject {
     }
     
     private func extractEventDetails(from userInput: String, aiContext: String) async -> EventDetails? {
-        // Use AI to extract structured event details from the conversation
-        let extractionPrompt = """
-        Extract calendar event details from this request. Return ONLY a JSON object with this exact format:
-        {"title": "event title", "date": "YYYY-MM-DD", "time": "HH:MM", "duration": 60, "notes": "optional notes"}
+        // Simple parsing without AI - more reliable and faster
+        let input = userInput.lowercased()
         
-        If time is not specified, use 10:00. If duration is not specified, use 60 minutes.
-        For relative dates like "tomorrow", "next Monday", calculate from today's date: \(Date()).
-        
-        User request: \(userInput)
-        AI context: \(aiContext)
-        
-        Return ONLY the JSON, nothing else.
-        """
-        
-        do {
-            let response = try await AIServiceManager.shared.sendChatMessage(
-                messages: [ChatMessage(text: extractionPrompt, isUser: true)],
-                systemPrompt: "You are a precise calendar event extractor. Return only valid JSON.",
-                temperature: 0.1
-            )
-            
-            // Parse JSON response
-            guard let jsonData = response.data(using: .utf8),
-                  let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-                  let title = json["title"] as? String,
-                  let dateString = json["date"] as? String,
-                  let timeString = json["time"] as? String else {
-                print("❌ Failed to parse calendar event JSON")
-                return nil
+        // Extract title - everything before date/time keywords
+        let dateKeywords = ["tomorrow", "today", "next", "on monday", "on tuesday", "on wednesday", "on thursday", "on friday", "on saturday", "on sunday", "at", "pm", "am"]
+        var title = userInput
+        for keyword in dateKeywords {
+            if let range = input.range(of: keyword) {
+                title = String(userInput[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
+                break
             }
-            
-            let duration = (json["duration"] as? Int) ?? 60
-            let notes = json["notes"] as? String
-            
-            // Parse date and time
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            guard let baseDate = dateFormatter.date(from: dateString) else {
-                print("❌ Failed to parse date: \(dateString)")
-                return nil
-            }
-            
-            // Combine date and time
-            let timeComponents = timeString.split(separator: ":").compactMap { Int($0) }
-            guard timeComponents.count == 2 else {
-                print("❌ Failed to parse time: \(timeString)")
-                return nil
-            }
-            
-            var dateComponents = Calendar.current.dateComponents([.year, .month, .day], from: baseDate)
-            dateComponents.hour = timeComponents[0]
-            dateComponents.minute = timeComponents[1]
-            
-            guard let finalDate = Calendar.current.date(from: dateComponents) else {
-                print("❌ Failed to create final date")
-                return nil
-            }
-            
-            return EventDetails(
-                title: title,
-                date: finalDate,
-                duration: TimeInterval(duration * 60),
-                notes: notes
-            )
-            
-        } catch {
-            print("❌ Failed to extract event details: \(error)")
-            return nil
         }
+        
+        // Clean up title - remove calendar-related words
+        title = title.replacingOccurrences(of: "add to calendar", with: "", options: .caseInsensitive)
+        title = title.replacingOccurrences(of: "add to my calendar", with: "", options: .caseInsensitive)
+        title = title.replacingOccurrences(of: "schedule", with: "", options: .caseInsensitive)
+        title = title.replacingOccurrences(of: "create event", with: "", options: .caseInsensitive)
+        title = title.trimmingCharacters(in: .whitespaces)
+        
+        if title.isEmpty {
+            title = "New Event"
+        }
+        
+        // Parse date
+        var eventDate = Date()
+        let calendar = Calendar.current
+        
+        if input.contains("tomorrow") {
+            eventDate = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        } else if input.contains("next monday") {
+            eventDate = getNextWeekday(.monday) ?? Date()
+        } else if input.contains("next tuesday") {
+            eventDate = getNextWeekday(.tuesday) ?? Date()
+        } else if input.contains("next wednesday") {
+            eventDate = getNextWeekday(.wednesday) ?? Date()
+        } else if input.contains("next thursday") {
+            eventDate = getNextWeekday(.thursday) ?? Date()
+        } else if input.contains("next friday") {
+            eventDate = getNextWeekday(.friday) ?? Date()
+        } else if input.contains("next saturday") {
+            eventDate = getNextWeekday(.saturday) ?? Date()
+        } else if input.contains("next sunday") {
+            eventDate = getNextWeekday(.sunday) ?? Date()
+        }
+        
+        // Parse time
+        var hour = 10 // default 10 AM
+        var minute = 0
+        
+        // Look for time patterns like "2pm", "2:30pm", "14:00"
+        let timePattern = #"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?"#
+        if let regex = try? NSRegularExpression(pattern: timePattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: input, range: NSRange(input.startIndex..., in: input)) {
+            
+            if let hourRange = Range(match.range(at: 1), in: input) {
+                hour = Int(input[hourRange]) ?? 10
+            }
+            if match.range(at: 2).location != NSNotFound,
+               let minuteRange = Range(match.range(at: 2), in: input) {
+                minute = Int(input[minuteRange]) ?? 0
+            }
+            if match.range(at: 3).location != NSNotFound,
+               let ampmRange = Range(match.range(at: 3), in: input) {
+                let ampm = String(input[ampmRange]).lowercased()
+                if ampm == "pm" && hour < 12 {
+                    hour += 12
+                } else if ampm == "am" && hour == 12 {
+                    hour = 0
+                }
+            }
+        }
+        
+        // Set time on date
+        var dateComponents = calendar.dateComponents([.year, .month, .day], from: eventDate)
+        dateComponents.hour = hour
+        dateComponents.minute = minute
+        eventDate = calendar.date(from: dateComponents) ?? eventDate
+        
+        // Duration (default 1 hour)
+        let duration: TimeInterval = 3600
+        
+        print("✅ Parsed calendar event: \(title) at \(eventDate)")
+        
+        return EventDetails(
+            title: title,
+            date: eventDate,
+            duration: duration,
+            notes: nil
+        )
+    }
+    
+    private func getNextWeekday(_ weekday: Calendar.Component) -> Date? {
+        // This is a simplified version - you'd need to implement proper weekday finding
+        let calendar = Calendar.current
+        let today = Date()
+        
+        // Map component to weekday number (1 = Sunday, 7 = Saturday)
+        let targetWeekday: Int
+        switch weekday {
+        case .sunday: targetWeekday = 1
+        case .monday: targetWeekday = 2
+        case .tuesday: targetWeekday = 3
+        case .wednesday: targetWeekday = 4
+        case .thursday: targetWeekday = 5
+        case .friday: targetWeekday = 6
+        case .saturday: targetWeekday = 7
+        default: return nil
+        }
+        
+        let currentWeekday = calendar.component(.weekday, from: today)
+        var daysToAdd = targetWeekday - currentWeekday
+        if daysToAdd <= 0 {
+            daysToAdd += 7 // Next week
+        }
+        
+        return calendar.date(byAdding: .day, value: daysToAdd, to: today)
     }
     
     private func createCalendarEvent(details: EventDetails) async -> Bool {
