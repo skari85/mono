@@ -233,26 +233,44 @@ final class CalendarManager: ObservableObject {
     
     // MARK: - Event Creation
     
-    func createEventFromConversation(_ conversation: Conversation) async -> EKEvent? {
-        guard hasCalendarAccess else { return nil }
-        let content = conversation.messages.map { $0.text }.joined(separator: "\n")
-        let suggestion = await generateEventSuggestion(from: conversation.title, content: content)
+    /// Create a calendar event with specific details
+    func createEvent(title: String, startDate: Date, duration: TimeInterval, notes: String? = nil) async -> EKEvent? {
+        guard hasCalendarAccess else {
+            print("❌ No calendar access")
+            return nil
+        }
         
         let event = EKEvent(eventStore: eventStore)
-        event.title = suggestion.title
-        event.notes = suggestion.notes
-        event.startDate = suggestion.startDate
-        event.endDate = suggestion.endDate
+        event.title = title
+        event.startDate = startDate
+        event.endDate = startDate.addingTimeInterval(duration)
+        event.notes = notes
         event.calendar = eventStore.defaultCalendarForNewEvents
         
         do {
             try eventStore.save(event, span: .thisEvent)
             await loadUpcomingEvents()
+            await loadTodaysEvents()
+            await prepareEventsForAI()
+            print("✅ Calendar event created: \(title) at \(startDate)")
             return event
         } catch {
             print("❌ Failed to save calendar event: \(error)")
             return nil
         }
+    }
+    
+    func createEventFromConversation(_ conversation: Conversation) async -> EKEvent? {
+        guard hasCalendarAccess else { return nil }
+        let content = conversation.messages.map { $0.text }.joined(separator: "\n")
+        let suggestion = await generateEventSuggestion(from: conversation.title, content: content)
+        
+        return await createEvent(
+            title: suggestion.title,
+            startDate: suggestion.startDate,
+            duration: suggestion.endDate.timeIntervalSince(suggestion.startDate),
+            notes: suggestion.notes
+        )
     }
     
     // MARK: - Suggestion Helper
