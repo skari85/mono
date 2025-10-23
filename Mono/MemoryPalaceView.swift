@@ -441,7 +441,7 @@ struct KnowledgeGraphView: View {
                     } else {
                         // Connection List
                         LazyVStack(spacing: 8) {
-                            ForEach(Array(memoryManager.knowledgeGraph.connections.values), id: \.id) { connection in
+                            ForEach(memoryManager.knowledgeGraph.connections, id: \.id) { connection in
                                 ConnectionCard(connection: connection) {
                                     if let node = memoryManager.getMemoryNode(id: connection.sourceNodeId) {
                                         selectedNode = node
@@ -462,7 +462,7 @@ struct KnowledgeGraphView: View {
                     // Simple network visualization
                     NetworkVisualizationView(
                         nodes: Array(memoryManager.knowledgeGraph.nodes.values),
-                        connections: Array(memoryManager.knowledgeGraph.connections.values)
+                        connections: memoryManager.knowledgeGraph.connections
                     )
                     .frame(height: 300)
                     .background(Color(.systemGray6))
