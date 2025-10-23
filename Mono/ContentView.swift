@@ -968,8 +968,13 @@ struct ChatMessagesPane: View {
               let conversation = dataManager.conversations.first(where: { $0.id == currentId })
         else { return }
         
-        let shareableItems = notesManager.createShareableContent(for: conversation)
-        shareItems = shareableItems
+        // Create shareable content from conversation
+        let conversationText = conversation.messages.map { message in
+            let prefix = message.isUser ? "You: " : "Mono: "
+            return "\(prefix)\(message.text)"
+        }.joined(separator: "\n\n")
+        
+        shareItems = [conversationText]
         showingShareSheet = true
     }
     
