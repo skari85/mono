@@ -59,9 +59,13 @@ class ChatViewModel: ObservableObject {
             let messageId = voiceMessage.recordingId ?? voiceMessage.id
             let transcription = try await TranscriptionService.shared.transcribeGroqWhisper(messageId: messageId, model: whisperModel, language: language)
 
-            // 2) Update the original user message with transcribed text
+            // 2) Update the original user message with transcribed text AND refresh data manager
             await MainActor.run {
                 voiceMessage.text = transcription
+                // Force a refresh by updating the data manager's messages array
+                if let index = dataManager.chatMessages.firstIndex(where: { $0.id == voiceMessage.id }) {
+                    dataManager.chatMessages[index].text = transcription
+                }
                 loadingPhase = .thinking
             }
 

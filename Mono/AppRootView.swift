@@ -37,6 +37,10 @@ struct AppRootView: View {
                     TasksView()
                         .tabItem { Label("Tasks", systemImage: "checklist") }
                         .tag(4)
+                    
+                    ADHDTrackerView()
+                        .tabItem { Label("Focus", systemImage: "brain") }
+                        .tag(5)
                 }
                 .environmentObject(DataManager.shared)
                 .onReceive(NotificationCenter.default.publisher(for: .summarizeSendToChat)) { note in

@@ -737,13 +737,19 @@ struct ChatMessagesPane: View {
                                 
                                 VStack(spacing: 12) {
                                     VStack(spacing: 8) {
-                                        Text("🧠 NEW: Smart cross-references find connections between conversations")
+                                        Text("🎯 NEW: ADHD Toolkit - Focus tracking, habits, and productivity insights")
+                                            .font(settingsManager.fontSize.captionFont)
+                                            .foregroundColor(.cassetteOrange)
+                                            .padding(.horizontal, 20)
+                                            .padding(.vertical, 6)
+                                        
+                                        Text("🧠 Smart cross-references find connections between conversations")
                                             .font(settingsManager.fontSize.captionFont)
                                             .foregroundColor(.cassetteTeal)
                                             .padding(.horizontal, 20)
                                             .padding(.vertical, 6)
                                         
-                                        Text("🍎 NEW: Calendar, Notes, and Focus Mode integration")
+                                        Text("🍎 Calendar, Notes, and Focus Mode integration")
                                             .font(settingsManager.fontSize.captionFont)
                                             .foregroundColor(.cassetteTeal)
                                             .padding(.horizontal, 20)
