@@ -251,19 +251,19 @@ class ChatViewModel: ObservableObject {
         if input.contains("tomorrow") {
             eventDate = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
         } else if input.contains("next monday") {
-            eventDate = getNextWeekday(.monday) ?? Date()
+            eventDate = getNextWeekday(2) ?? Date() // Monday = 2
         } else if input.contains("next tuesday") {
-            eventDate = getNextWeekday(.tuesday) ?? Date()
+            eventDate = getNextWeekday(3) ?? Date() // Tuesday = 3
         } else if input.contains("next wednesday") {
-            eventDate = getNextWeekday(.wednesday) ?? Date()
+            eventDate = getNextWeekday(4) ?? Date() // Wednesday = 4
         } else if input.contains("next thursday") {
-            eventDate = getNextWeekday(.thursday) ?? Date()
+            eventDate = getNextWeekday(5) ?? Date() // Thursday = 5
         } else if input.contains("next friday") {
-            eventDate = getNextWeekday(.friday) ?? Date()
+            eventDate = getNextWeekday(6) ?? Date() // Friday = 6
         } else if input.contains("next saturday") {
-            eventDate = getNextWeekday(.saturday) ?? Date()
+            eventDate = getNextWeekday(7) ?? Date() // Saturday = 7
         } else if input.contains("next sunday") {
-            eventDate = getNextWeekday(.sunday) ?? Date()
+            eventDate = getNextWeekday(1) ?? Date() // Sunday = 1
         }
         
         // Parse time
@@ -312,23 +312,10 @@ class ChatViewModel: ObservableObject {
         )
     }
     
-    private func getNextWeekday(_ weekday: Calendar.Component) -> Date? {
-        // This is a simplified version - you'd need to implement proper weekday finding
+    private func getNextWeekday(_ targetWeekday: Int) -> Date? {
+        // targetWeekday: 1 = Sunday, 2 = Monday, 3 = Tuesday, ..., 7 = Saturday
         let calendar = Calendar.current
         let today = Date()
-        
-        // Map component to weekday number (1 = Sunday, 7 = Saturday)
-        let targetWeekday: Int
-        switch weekday {
-        case .sunday: targetWeekday = 1
-        case .monday: targetWeekday = 2
-        case .tuesday: targetWeekday = 3
-        case .wednesday: targetWeekday = 4
-        case .thursday: targetWeekday = 5
-        case .friday: targetWeekday = 6
-        case .saturday: targetWeekday = 7
-        default: return nil
-        }
         
         let currentWeekday = calendar.component(.weekday, from: today)
         var daysToAdd = targetWeekday - currentWeekday
