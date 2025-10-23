@@ -411,7 +411,7 @@ struct ContentView: View {
     @EnvironmentObject private var dataManager: DataManager
     @EnvironmentObject private var calendarManager: CalendarManager
     @EnvironmentObject private var focusManager: FocusManager
-    @EnvironmentObject private var notesManager: AppleNotesManager
+    @StateObject private var notesManager = AppleNotesManager.shared
     @StateObject private var viewModel: ChatViewModel
     @EnvironmentObject private var settingsManager: SettingsManager
 

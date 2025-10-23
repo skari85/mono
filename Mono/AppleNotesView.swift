@@ -194,13 +194,15 @@ struct AppleNotesView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
                         Task {
-                            await notesManager.createNote(
+                            let success = await notesManager.createNote(
                                 title: newNoteTitle,
                                 content: newNoteContent
                             )
-                            showingCreateNote = false
-                            newNoteTitle = ""
-                            newNoteContent = ""
+                            if success {
+                                showingCreateNote = false
+                                newNoteTitle = ""
+                                newNoteContent = ""
+                            }
                         }
                     }
                     .disabled(newNoteTitle.isEmpty || newNoteContent.isEmpty)

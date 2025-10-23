@@ -25,13 +25,16 @@ class AppleNotesManager: ObservableObject {
     // MARK: - Notes Access
     
     func checkNotesAccess() {
-        switch EKEventStore.authorizationStatus(for: .reminder) {
+        let status = EKEventStore.authorizationStatus(for: .reminder)
+        switch status {
         case .authorized:
             hasNotesAccess = true
             loadNotes()
         case .notDetermined:
             requestNotesAccess()
-        case .denied, .restricted:
+        case .denied:
+            hasNotesAccess = false
+        case .restricted:
             hasNotesAccess = false
         @unknown default:
             hasNotesAccess = false
@@ -39,14 +42,28 @@ class AppleNotesManager: ObservableObject {
     }
     
     func requestNotesAccess() {
-        eventStore.requestAccess(to: .reminder) { [weak self] granted, error in
-            DispatchQueue.main.async {
-                if granted {
-                    self?.hasNotesAccess = true
-                    self?.loadNotes()
-                } else {
-                    self?.hasNotesAccess = false
-                    self?.lastError = error?.localizedDescription ?? "Notes access denied"
+        if #available(iOS 17.0, *) {
+            eventStore.requestFullAccessToReminders { [weak self] granted, error in
+                DispatchQueue.main.async {
+                    if granted {
+                        self?.hasNotesAccess = true
+                        self?.loadNotes()
+                    } else {
+                        self?.hasNotesAccess = false
+                        self?.lastError = error?.localizedDescription ?? "Notes access denied"
+                    }
+                }
+            }
+        } else {
+            eventStore.requestAccess(to: .reminder) { [weak self] granted, error in
+                DispatchQueue.main.async {
+                    if granted {
+                        self?.hasNotesAccess = true
+                        self?.loadNotes()
+                    } else {
+                        self?.hasNotesAccess = false
+                        self?.lastError = error?.localizedDescription ?? "Notes access denied"
+                    }
                 }
             }
         }
@@ -88,9 +105,9 @@ class AppleNotesManager: ObservableObject {
             let reminder = EKReminder(eventStore: eventStore)
             reminder.title = title
             reminder.notes = content
-            reminder.calendar = eventStore.defaultCalendarForNewReminders
+            reminder.calendar = eventStore.defaultCalendarForNewReminders()
             
-            try eventStore.saveReminder(reminder, commit: true)
+            try eventStore.save(reminder, commit: true)
             
             await MainActor.run {
                 loadNotes()
@@ -128,7 +145,7 @@ class AppleNotesManager: ObservableObject {
 // MARK: - Supporting Models
 
 struct EKNote: Identifiable, Codable {
-    let id = UUID()
+    var id = UUID()
     let title: String
     let content: String
     let createdDate: Date
@@ -165,10 +182,10 @@ extension AppleNotesManager {
         let title = task.title
         let content = """
         Task: \(task.title)
-        Description: \(task.description)
         Priority: \(task.priority.rawValue)
         Status: \(task.isCompleted ? "Completed" : "Pending")
         Created: \(task.createdAt.formatted())
+        \(task.dueDate != nil ? "Due: \(task.dueDate!.formatted())" : "")
         """
         
         return await createNote(title: title, content: content)
