@@ -28,7 +28,20 @@ struct HandwrittenText: View {
                 .overlay(
                     // Paper texture
                     Canvas { context, size in
-                        for _ in 0..<Int(size.width * size.height / 300) {
+                        // Guard against invalid dimensions
+                        guard size.width > 1 && size.height > 1 &&
+                              size.width.isFinite && size.height.isFinite &&
+                              size.width < 10000 && size.height < 10000 else {
+                            return
+                        }
+                        
+                        let area = size.width * size.height
+                        guard area.isFinite && area > 0 else {
+                            return
+                        }
+                        
+                        let grainCount = Int(area / 300)
+                        for _ in 0..<grainCount {
                             let x = Double.random(in: 0...size.width)
                             let y = Double.random(in: 0...size.height)
                             let opacity = Double.random(in: 0.02...0.06)

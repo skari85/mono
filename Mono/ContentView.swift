@@ -39,13 +39,20 @@ struct PaperTexture: View {
 
     var body: some View {
         Canvas { context, size in
-            // Guard against invalid dimensions
-            guard size.width > 0 && size.height > 0 && size.width.isFinite && size.height.isFinite else {
+            // Guard against invalid dimensions - be extra strict
+            guard size.width > 1 && size.height > 1 && 
+                  size.width.isFinite && size.height.isFinite &&
+                  size.width < 10000 && size.height < 10000 else {
                 return
             }
 
             var rng = SeededRandomNumberGenerator(seed: seed)
             let area = size.width * size.height
+            
+            // Extra validation for area
+            guard area.isFinite && area > 0 else {
+                return
+            }
 
             // Create subtle paper grain texture
             let grainCount = max(0, Int(area / 100))
@@ -118,9 +125,13 @@ struct HandDrawnRoundedRectangle: Shape {
         let width = rect.width
         let height = rect.height
 
-        // Guard against invalid dimensions
-        guard width > 0 && height > 0 && width.isFinite && height.isFinite &&
-              cornerRadius.isFinite && roughness.isFinite else {
+        // Guard against invalid dimensions - be extra strict to prevent NaN
+        guard width > 1 && height > 1 && 
+              width.isFinite && height.isFinite && 
+              width < 10000 && height < 10000 && // Reasonable upper bounds
+              cornerRadius.isFinite && cornerRadius >= 0 &&
+              roughness.isFinite && roughness >= 0 else {
+            // Return empty path for invalid dimensions
             return path
         }
 
@@ -231,9 +242,13 @@ struct HandDrawnCircle: Shape {
         let center = CGPoint(x: rect.midX, y: rect.midY)
         let radius = min(rect.width, rect.height) / 2
 
-        // Guard against invalid dimensions
-        guard rect.width > 0 && rect.height > 0 && rect.width.isFinite && rect.height.isFinite &&
-              radius > 0 && radius.isFinite && roughness.isFinite else {
+        // Guard against invalid dimensions - be extra strict
+        guard rect.width > 1 && rect.height > 1 && 
+              rect.width.isFinite && rect.height.isFinite &&
+              rect.width < 10000 && rect.height < 10000 &&
+              radius > 0.5 && radius.isFinite && 
+              roughness.isFinite && roughness >= 0 &&
+              center.x.isFinite && center.y.isFinite else {
             return path
         }
 
@@ -323,9 +338,11 @@ struct WobblyLine: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
 
-        // Guard against invalid dimensions
-        guard rect.width > 0 && rect.height > 0 && rect.width.isFinite && rect.height.isFinite &&
-              roughness.isFinite else {
+        // Guard against invalid dimensions - be extra strict
+        guard rect.width > 1 && rect.height > 0.5 && 
+              rect.width.isFinite && rect.height.isFinite &&
+              rect.width < 10000 && rect.height < 10000 &&
+              roughness.isFinite && roughness >= 0 else {
             return path
         }
 
