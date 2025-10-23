@@ -33,6 +33,10 @@
     <key>NSCalendarsUsageDescription</key>
     <string>Mono uses your calendar to create events from conversations and help you schedule follow-ups.</string>
 
+    <!-- Reminders access for Notes integration -->
+    <key>NSRemindersUsageDescription</key>
+    <string>Mono uses your reminders to access and create notes, helping you organize your thoughts and conversations.</string>
+
     <!-- Face ID/Touch ID Permission -->
     <key>NSFaceIDUsageDescription</key>
     <string>Mono uses Face ID to securely protect your recordings and provide quick, convenient access to the app.</string>

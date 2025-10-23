@@ -746,9 +746,19 @@ struct NetworkVisualizationView: View {
     
     var body: some View {
         Canvas { context, size in
+            // Guard against invalid dimensions
+            guard size.width > 1 && size.height > 1 &&
+                  size.width.isFinite && size.height.isFinite &&
+                  size.width < 10000 && size.height < 10000 else {
+                return
+            }
+            
             // Simple network visualization
             let center = CGPoint(x: size.width / 2, y: size.height / 2)
             let radius = min(size.width, size.height) * 0.3
+            
+            // Validate radius
+            guard radius > 0 && radius.isFinite else { return }
             
             // Draw connections
             for connection in connections {
@@ -771,6 +781,12 @@ struct NetworkVisualizationView: View {
                         y: center.y + radius * sin(targetAngle)
                     )
                     
+                    // Validate points
+                    guard sourcePoint.x.isFinite && sourcePoint.y.isFinite &&
+                          targetPoint.x.isFinite && targetPoint.y.isFinite else {
+                        continue
+                    }
+                    
                     // Draw connection line
                     context.stroke(
                         Path { path in
@@ -790,6 +806,11 @@ struct NetworkVisualizationView: View {
                     x: center.x + radius * cos(angle),
                     y: center.y + radius * sin(angle)
                 )
+                
+                // Validate point
+                guard point.x.isFinite && point.y.isFinite else {
+                    continue
+                }
                 
                 // Draw node circle
                 context.fill(

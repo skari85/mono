@@ -2,166 +2,175 @@
 //  AppleNotesManager.swift
 //  Mono
 //
-//  Apple Notes integration for conversation export
+//  Apple Notes Integration Manager
 //
 
 import Foundation
 import EventKit
+import SwiftUI
 
-final class AppleNotesManager: ObservableObject {
+class AppleNotesManager: ObservableObject {
     static let shared = AppleNotesManager()
     
-    private init() {}
+    @Published var hasNotesAccess = false
+    @Published var notes: [EKNote] = []
+    @Published var lastError: String?
     
-    // MARK: - Export to Apple Notes
+    private let eventStore = EKEventStore()
     
-    func exportConversationToNotes(_ conversation: Conversation) async -> URL? {
-        let formattedContent = formatConversationForNotes(conversation)
-        
-        // Create a temporary file that can be shared to Notes
-        let tempDir = FileManager.default.temporaryDirectory
-        let fileName = "\(conversation.title).txt"
-        let fileURL = tempDir.appendingPathComponent(fileName)
-        
-        do {
-            try formattedContent.write(to: fileURL, atomically: true, encoding: .utf8)
-            return fileURL
-        } catch {
-            print("❌ Failed to create notes file: \(error)")
-            return nil
+    private init() {
+        checkNotesAccess()
+    }
+    
+    // MARK: - Notes Access
+    
+    func checkNotesAccess() {
+        switch EKEventStore.authorizationStatus(for: .reminder) {
+        case .authorized:
+            hasNotesAccess = true
+            loadNotes()
+        case .notDetermined:
+            requestNotesAccess()
+        case .denied, .restricted:
+            hasNotesAccess = false
+        @unknown default:
+            hasNotesAccess = false
         }
     }
     
-    private func formatConversationForNotes(_ conversation: Conversation) -> String {
-        var content = ""
-        
-        // Title and metadata
-        content += "# \(conversation.title)\n\n"
-        content += "**Created:** \(DateFormatter.readable.string(from: conversation.createdAt))\n"
-        content += "**Messages:** \(conversation.messages.count)\n\n"
-        
-        // Add conversation tags if available
-        let tags = extractTags(from: conversation)
-        if !tags.isEmpty {
-            content += "**Tags:** \(tags.joined(separator: ", "))\n\n"
-        }
-        
-        content += "---\n\n"
-        
-        // Conversation content
-        for (index, message) in conversation.messages.enumerated() {
-            let speaker = message.isUser ? "👤 You" : "🤖 Mono"
-            let timestamp = DateFormatter.timeOnly.string(from: message.timestamp)
-            
-            content += "## \(speaker) (\(timestamp))\n\n"
-            content += "\(message.text)\n\n"
-            
-            // Add separator between messages
-            if index < conversation.messages.count - 1 {
-                content += "---\n\n"
+    func requestNotesAccess() {
+        eventStore.requestAccess(to: .reminder) { [weak self] granted, error in
+            DispatchQueue.main.async {
+                if granted {
+                    self?.hasNotesAccess = true
+                    self?.loadNotes()
+                } else {
+                    self?.hasNotesAccess = false
+                    self?.lastError = error?.localizedDescription ?? "Notes access denied"
+                }
             }
         }
-        
-        // Add summary section
-        content += "\n## Summary\n\n"
-        content += "This conversation was exported from Mono on \(DateFormatter.readable.string(from: Date())).\n"
-        content += "Total duration: \(conversationDuration(conversation))\n"
-        
-        return content
     }
     
-    private func extractTags(from conversation: Conversation) -> [String] {
-        let allText = conversation.messages.map { $0.text }.joined(separator: " ").lowercased()
-        var tags: [String] = []
-        
-        // Work-related tags
-        if allText.contains("work") || allText.contains("project") || allText.contains("meeting") {
-            tags.append("work")
-        }
-        
-        // Personal tags
-        if allText.contains("personal") || allText.contains("family") || allText.contains("friend") {
-            tags.append("personal")
-        }
-        
-        // Creative tags
-        if allText.contains("creative") || allText.contains("idea") || allText.contains("design") {
-            tags.append("creative")
-        }
-        
-        // Learning tags
-        if allText.contains("learn") || allText.contains("understand") || allText.contains("explain") {
-            tags.append("learning")
-        }
-        
-        // Decision tags
-        if allText.contains("decide") || allText.contains("choose") || allText.contains("option") {
-            tags.append("decision")
-        }
-        
-        return tags
-    }
+    // MARK: - Notes Management
     
-    private func conversationDuration(_ conversation: Conversation) -> String {
-        guard let firstMessage = conversation.messages.first,
-              let lastMessage = conversation.messages.last else {
-            return "Unknown"
-        }
+    func loadNotes() {
+        guard hasNotesAccess else { return }
         
-        let duration = lastMessage.timestamp.timeIntervalSince(firstMessage.timestamp)
+        // Note: EKEventStore doesn't have direct access to Notes app
+        // We'll use a workaround with reminders that can store notes
+        let predicate = eventStore.predicateForReminders(in: nil)
         
-        if duration < 60 {
-            return "< 1 minute"
-        } else if duration < 3600 {
-            let minutes = Int(duration / 60)
-            return "\(minutes) minute\(minutes == 1 ? "" : "s")"
-        } else {
-            let hours = Int(duration / 3600)
-            let minutes = Int((duration.truncatingRemainder(dividingBy: 3600)) / 60)
-            return "\(hours)h \(minutes)m"
+        eventStore.fetchReminders(matching: predicate) { [weak self] reminders in
+            DispatchQueue.main.async {
+                if let reminders = reminders {
+                    // Convert reminders to notes-like objects
+                    self?.notes = reminders.compactMap { reminder in
+                        if let notes = reminder.notes, !notes.isEmpty {
+                            return EKNote(
+                                title: reminder.title,
+                                content: notes,
+                                createdDate: reminder.creationDate ?? Date(),
+                                modifiedDate: reminder.lastModifiedDate ?? Date()
+                            )
+                        }
+                        return nil
+                    }
+                }
+            }
         }
     }
     
-    // MARK: - Share Sheet Integration
-    
-    func createShareableContent(for conversation: Conversation) -> [Any] {
-        var items: [Any] = []
+    func createNote(title: String, content: String) async -> Bool {
+        guard hasNotesAccess else { return false }
         
-        // Add formatted text
-        let formattedText = formatConversationForNotes(conversation)
-        items.append(formattedText)
-        
-        // Add temporary file URL for better integration
-        if let fileURL = try? createTemporaryFile(content: formattedText, fileName: conversation.title) {
-            items.append(fileURL)
+        do {
+            let reminder = EKReminder(eventStore: eventStore)
+            reminder.title = title
+            reminder.notes = content
+            reminder.calendar = eventStore.defaultCalendarForNewReminders
+            
+            try eventStore.saveReminder(reminder, commit: true)
+            
+            await MainActor.run {
+                loadNotes()
+            }
+            
+            return true
+        } catch {
+            await MainActor.run {
+                lastError = "Failed to create note: \(error.localizedDescription)"
+            }
+            return false
         }
-        
-        return items
     }
     
-    private func createTemporaryFile(content: String, fileName: String) throws -> URL {
-        let tempDir = FileManager.default.temporaryDirectory
-        let sanitizedFileName = fileName.replacingOccurrences(of: "[^a-zA-Z0-9\\s]", with: "", options: .regularExpression)
-        let fileURL = tempDir.appendingPathComponent("\(sanitizedFileName).txt")
+    func searchNotes(query: String) -> [EKNote] {
+        guard !query.isEmpty else { return notes }
         
-        try content.write(to: fileURL, atomically: true, encoding: .utf8)
-        return fileURL
+        return notes.filter { note in
+            note.title.localizedCaseInsensitiveContains(query) ||
+            note.content.localizedCaseInsensitiveContains(query)
+        }
+    }
+    
+    func getRecentNotes(limit: Int = 10) -> [EKNote] {
+        return Array(notes.sorted { $0.modifiedDate > $1.modifiedDate }.prefix(limit))
+    }
+    
+    func getNotesByDateRange(startDate: Date, endDate: Date) -> [EKNote] {
+        return notes.filter { note in
+            note.createdDate >= startDate && note.createdDate <= endDate
+        }
     }
 }
 
-// MARK: - Date Formatters
+// MARK: - Supporting Models
 
-extension DateFormatter {
-    static let readable: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter
-    }()
+struct EKNote: Identifiable, Codable {
+    let id = UUID()
+    let title: String
+    let content: String
+    let createdDate: Date
+    let modifiedDate: Date
     
-    static let timeOnly: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter
-    }()
+    var preview: String {
+        return String(content.prefix(100))
+    }
+    
+    var wordCount: Int {
+        return content.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.count
+    }
+}
+
+// MARK: - Notes Integration Extensions
+
+extension AppleNotesManager {
+    
+    func exportConversationToNotes(_ conversation: Conversation) async -> Bool {
+        let title = conversation.title
+        let content = conversation.messages.map { message in
+            let prefix = message.isUser ? "You: " : "Mono: "
+            return "\(prefix)\(message.text)"
+        }.joined(separator: "\n\n")
+        
+        return await createNote(title: title, content: content)
+    }
+    
+    func createNoteFromSummary(_ summary: String, title: String = "AI Summary") async -> Bool {
+        return await createNote(title: title, content: summary)
+    }
+    
+    func createNoteFromTask(_ task: TaskItem) async -> Bool {
+        let title = task.title
+        let content = """
+        Task: \(task.title)
+        Description: \(task.description)
+        Priority: \(task.priority.rawValue)
+        Status: \(task.isCompleted ? "Completed" : "Pending")
+        Created: \(task.createdAt.formatted())
+        """
+        
+        return await createNote(title: title, content: content)
+    }
 }

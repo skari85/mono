@@ -570,8 +570,8 @@ struct ContentView: View {
                                 Label("Search This Conversation", systemImage: "magnifyingglass")
                             }
 
-                            Button(action: { exportCurrentConversationToNotes() }) {
-                                Label("Export to Notes", systemImage: "square.and.arrow.up")
+                            Button(action: { Task { await exportCurrentConversationToAppleNotes() } }) {
+                                Label("Export to Apple Notes", systemImage: "note.text")
                             }
                         }
                 }
@@ -971,6 +971,22 @@ struct ChatMessagesPane: View {
         let shareableItems = notesManager.createShareableContent(for: conversation)
         shareItems = shareableItems
         showingShareSheet = true
+    }
+    
+    private func exportCurrentConversationToAppleNotes() async {
+        guard let currentId = dataManager.selectedConversationId,
+              let conversation = dataManager.conversations.first(where: { $0.id == currentId })
+        else { return }
+        
+        let success = await AppleNotesManager.shared.exportConversationToNotes(conversation)
+        
+        await MainActor.run {
+            if success {
+                print("✅ Successfully exported conversation to Apple Notes")
+            } else {
+                print("❌ Failed to export conversation to Apple Notes")
+            }
+        }
     }
 
     private func cyclePersonalityMode() {

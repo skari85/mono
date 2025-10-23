@@ -41,6 +41,10 @@ struct AppRootView: View {
                     ADHDTrackerView()
                         .tabItem { Label("Focus", systemImage: "brain") }
                         .tag(5)
+                    
+                    AppleNotesView()
+                        .tabItem { Label("Notes", systemImage: "note.text") }
+                        .tag(6)
                 }
                 .environmentObject(DataManager.shared)
                 .onReceive(NotificationCenter.default.publisher(for: .summarizeSendToChat)) { note in

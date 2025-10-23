@@ -119,11 +119,19 @@ extension WelcomeFeature {
             isNew: true
         ),
         WelcomeFeature(
-            icon: "square.and.arrow.up",
-            title: "Notes Export",
-            description: "Share conversations to Apple Notes",
-            detailedDescription: "Export your conversations to Apple Notes, Messages, or any app. Perfect for sharing insights, saving important discussions, or integrating with your existing workflow.",
+            icon: "note.text",
+            title: "Apple Notes Integration",
+            description: "Full integration with Apple Notes app",
+            detailedDescription: "Access your Apple Notes directly from Mono. View, search, and create notes seamlessly. Export conversations to Notes with proper formatting. Your notes and conversations work together.",
             category: .integration,
+            isNew: true
+        ),
+        WelcomeFeature(
+            icon: "brain",
+            title: "ADHD Focus Toolkit",
+            description: "Productivity and focus tracking tools",
+            detailedDescription: "Specialized tools for ADHD users: focus sessions, habit tracking, productivity insights, and behavioral patterns. Track your focus, complete tasks, and understand your productivity patterns.",
+            category: .intelligence,
             isNew: true
         ),
         
@@ -870,10 +878,13 @@ struct TutorialGuideView: View {
                                 
                                 VStack(alignment: .leading, spacing: 12) {
                                     TipRow(tip: "Tap the mode name (🧠 Smart) to cycle between AI personalities")
+                                    TipRow(tip: "Tap the focus indicator (🏠 Work) to cycle through focus modes")
                                     TipRow(tip: "Long-press any AI message for quick actions like 'Make Shorter'")
                                     TipRow(tip: "Use the + button for contextual prompts based on your Focus Mode")
-                                    TipRow(tip: "Swipe left on the main screen to see your conversation history")
                                     TipRow(tip: "Voice messages are automatically transcribed—perfect for hands-free use")
+                                    TipRow(tip: "Export conversations to Apple Notes via the context menu")
+                                    TipRow(tip: "Use the Focus tab for ADHD productivity tracking and insights")
+                                    TipRow(tip: "Memory Palace automatically organizes your conversation insights")
                                 }
                             }
                             .padding(16)
