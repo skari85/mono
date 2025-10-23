@@ -26,16 +26,18 @@ class AppleNotesManager: ObservableObject {
     
     func checkNotesAccess() {
         let status = EKEventStore.authorizationStatus(for: .reminder)
+        
         switch status {
+        case .notDetermined:
+            hasNotesAccess = false
+            requestNotesAccess()
+        case .restricted:
+            hasNotesAccess = false
+        case .denied:
+            hasNotesAccess = false
         case .authorized:
             hasNotesAccess = true
             loadNotes()
-        case .notDetermined:
-            requestNotesAccess()
-        case .denied:
-            hasNotesAccess = false
-        case .restricted:
-            hasNotesAccess = false
         @unknown default:
             hasNotesAccess = false
         }

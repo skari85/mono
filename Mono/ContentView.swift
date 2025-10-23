@@ -533,13 +533,23 @@ struct ContentView: View {
                         print("🧠 Brain icon tapped - current mode: \(viewModel.currentMode.rawValue)")
                     }) {
                         HStack(spacing: 4) {
-                            Image(systemName: "brain.head.profile")
+                            Image(systemName: brainIconForMode(viewModel.currentMode))
                                 .font(.subheadline)
-                                .foregroundColor(.cassetteTeal)
+                                .foregroundColor(brainColorForMode(viewModel.currentMode))
+                                .scaleEffect(1.0)
+                                .animation(.easeInOut(duration: 0.2), value: viewModel.currentMode)
                             Text(viewModel.currentMode.rawValue.lowercased())
                                 .font(.subheadline)
                                 .foregroundColor(.cassetteTextMedium)
+                                .animation(.easeInOut(duration: 0.2), value: viewModel.currentMode)
                         }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(brainColorForMode(viewModel.currentMode).opacity(0.1))
+                                .animation(.easeInOut(duration: 0.2), value: viewModel.currentMode)
+                        )
                     }
                     // Settings (compact)
                     Button(action: { showingSettings = true }) {
@@ -1001,8 +1011,7 @@ struct ChatMessagesPane: View {
             viewModel.currentMode = suggestedMode
             
             // Haptic feedback
-            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-            impactFeedback.impactOccurred()
+            safeHapticFeedback()
             return
         }
         
@@ -1013,8 +1022,7 @@ struct ChatMessagesPane: View {
             viewModel.currentMode = modes[nextIndex]
 
             // Haptic feedback
-            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-            impactFeedback.impactOccurred()
+            safeHapticFeedback()
         }
     }
     
@@ -1031,8 +1039,7 @@ struct ChatMessagesPane: View {
         }
         
         // Haptic feedback
-        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-        impactFeedback.impactOccurred()
+        safeHapticFeedback()
     }
     
     private func focusIconForMode(_ mode: FocusManager.FocusMode) -> String {
@@ -1051,6 +1058,42 @@ struct ChatMessagesPane: View {
             return "car.fill"
         case .unknown:
             return "questionmark.circle"
+        }
+    }
+    
+    private func brainIconForMode(_ mode: PersonalityMode) -> String {
+        switch mode {
+        case .smart:
+            return "brain.head.profile"
+        case .quiet:
+            return "brain.filled.head.profile"
+        case .play:
+            return "brain.head.profile"
+        }
+    }
+    
+    private func brainColorForMode(_ mode: PersonalityMode) -> Color {
+        switch mode {
+        case .smart:
+            return .cassetteTeal
+        case .quiet:
+            return .blue
+        case .play:
+            return .cassetteOrange
+        }
+    }
+    
+    private func safeHapticFeedback() {
+        // Safe haptic feedback that won't cause AVHapticClient errors
+        DispatchQueue.main.async {
+            do {
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.prepare()
+                impactFeedback.impactOccurred()
+            } catch {
+                // Silently ignore haptic feedback errors
+                print("Haptic feedback unavailable: \(error)")
+            }
         }
     }
 
