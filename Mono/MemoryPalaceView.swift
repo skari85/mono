@@ -29,14 +29,11 @@ struct MemoryPalaceView: View {
                     case 0:
                         MemoryOverviewView(selectedNode: $selectedNode, showingDetail: $showingNodeDetail)
                     case 1:
-                        Text("Knowledge Graph View")
-                            .foregroundColor(.secondary)
+                        KnowledgeGraphView(selectedNode: $selectedNode, showingDetail: $showingNodeDetail)
                     case 2:
-                        Text("Topic Clusters View")
-                            .foregroundColor(.secondary)
+                        TopicClustersView(selectedNode: $selectedNode, showingDetail: $showingNodeDetail)
                     case 3:
-                        Text("Memory Timeline View")
-                            .foregroundColor(.secondary)
+                        MemoryTimelineView(selectedNode: $selectedNode, showingDetail: $showingNodeDetail)
                     default:
                         MemoryOverviewView(selectedNode: $selectedNode, showingDetail: $showingNodeDetail)
                     }
@@ -405,5 +402,417 @@ struct MemoryNodeDetailView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Knowledge Graph View
+
+struct KnowledgeGraphView: View {
+    @StateObject private var memoryManager = MemoryPalaceManager.shared
+    @Binding var selectedNode: MemoryNode?
+    @Binding var showingDetail: Bool
+    
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                // Graph Overview
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Knowledge Connections")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    if memoryManager.knowledgeGraph.connections.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "link")
+                                .font(.system(size: 48))
+                                .foregroundColor(.secondary)
+                            
+                            Text("No connections yet")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            Text("Start having conversations to build your knowledge graph")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                    } else {
+                        // Connection List
+                        LazyVStack(spacing: 8) {
+                            ForEach(Array(memoryManager.knowledgeGraph.connections.values), id: \.id) { connection in
+                                ConnectionCard(connection: connection) {
+                                    if let node = memoryManager.getMemoryNode(id: connection.sourceNodeId) {
+                                        selectedNode = node
+                                        showingDetail = true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Node Network Visualization
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Node Network")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    // Simple network visualization
+                    NetworkVisualizationView(
+                        nodes: Array(memoryManager.knowledgeGraph.nodes.values),
+                        connections: Array(memoryManager.knowledgeGraph.connections.values)
+                    )
+                    .frame(height: 300)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                }
+            }
+            .padding()
+        }
+    }
+}
+
+// MARK: - Topic Clusters View
+
+struct TopicClustersView: View {
+    @StateObject private var memoryManager = MemoryPalaceManager.shared
+    @Binding var selectedNode: MemoryNode?
+    @Binding var showingDetail: Bool
+    
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Topic Clusters")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    let clusters = memoryManager.getTopicClusters()
+                    
+                    if clusters.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "tag")
+                                .font(.system(size: 48))
+                                .foregroundColor(.secondary)
+                            
+                            Text("No topics yet")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            Text("Topics will be automatically organized as you have more conversations")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                    } else {
+                        LazyVStack(spacing: 16) {
+                            ForEach(Array(clusters.keys.sorted()), id: \.self) { topic in
+                                TopicClusterCard(
+                                    topic: topic,
+                                    nodes: clusters[topic] ?? [],
+                                    onNodeTap: { node in
+                                        selectedNode = node
+                                        showingDetail = true
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            .padding()
+        }
+    }
+}
+
+// MARK: - Memory Timeline View
+
+struct MemoryTimelineView: View {
+    @StateObject private var memoryManager = MemoryPalaceManager.shared
+    @Binding var selectedNode: MemoryNode?
+    @Binding var showingDetail: Bool
+    
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Memory Timeline")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    let timelineNodes = memoryManager.knowledgeGraph.timeline
+                        .compactMap { memoryManager.getMemoryNode(id: $0) }
+                        .sorted { $0.createdAt > $1.createdAt }
+                    
+                    if timelineNodes.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "clock")
+                                .font(.system(size: 48))
+                                .foregroundColor(.secondary)
+                            
+                            Text("No memories yet")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            Text("Your conversation insights will appear here chronologically")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                    } else {
+                        // Group by date
+                        let groupedNodes = Dictionary(grouping: timelineNodes) { node in
+                            Calendar.current.startOfDay(for: node.createdAt)
+                        }
+                        
+                        LazyVStack(spacing: 20) {
+                            ForEach(Array(groupedNodes.keys.sorted(by: >)), id: \.self) { date in
+                                TimelineDaySection(
+                                    date: date,
+                                    nodes: groupedNodes[date] ?? [],
+                                    onNodeTap: { node in
+                                        selectedNode = node
+                                        showingDetail = true
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            .padding()
+        }
+    }
+}
+
+// MARK: - Supporting Views
+
+struct ConnectionCard: View {
+    let connection: KnowledgeConnection
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                // Connection Type Icon
+                Image(systemName: connectionIcon(for: connection.connectionType))
+                    .font(.title3)
+                    .foregroundColor(connectionColor(for: connection.connectionType))
+                    .frame(width: 24, height: 24)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(connection.connectionType.rawValue.capitalized)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    Text(connection.description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                    
+                    HStack {
+                        Text("Strength: \(Int(connection.strength * 100))%")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        
+                        Spacer()
+                        
+                        Text(connection.createdAt, style: .relative)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .background(Color(.systemBackground))
+            .cornerRadius(12)
+            .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private func connectionIcon(for type: ConnectionType) -> String {
+        switch type {
+        case .similar: return "equal.circle"
+        case .causal: return "arrow.right.circle"
+        case .contradictory: return "exclamationmark.circle"
+        case .elaborative: return "plus.circle"
+        case .temporal: return "clock.circle"
+        case .thematic: return "tag.circle"
+        }
+    }
+    
+    private func connectionColor(for type: ConnectionType) -> Color {
+        switch type {
+        case .similar: return .blue
+        case .causal: return .green
+        case .contradictory: return .red
+        case .elaborative: return .purple
+        case .temporal: return .orange
+        case .thematic: return .teal
+        }
+    }
+}
+
+struct TopicClusterCard: View {
+    let topic: String
+    let nodes: [MemoryNode]
+    let onNodeTap: (MemoryNode) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(topic)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                Spacer()
+                
+                Text("\(nodes.count) nodes")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(.systemGray5))
+                    .cornerRadius(8)
+            }
+            
+            LazyVStack(spacing: 8) {
+                ForEach(nodes.prefix(5)) { node in
+                    MemoryNodeCard(node: node, onTap: { onNodeTap(node) })
+                }
+                
+                if nodes.count > 5 {
+                    Button("View \(nodes.count - 5) more...") {
+                        // Show all nodes for this topic
+                    }
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                }
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+}
+
+struct TimelineDaySection: View {
+    let date: Date
+    let nodes: [MemoryNode]
+    let onNodeTap: (MemoryNode) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(date, style: .date)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                
+                Spacer()
+                
+                Text("\(nodes.count) insights")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            LazyVStack(spacing: 8) {
+                ForEach(nodes) { node in
+                    MemoryNodeCard(node: node, onTap: { onNodeTap(node) })
+                }
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+}
+
+struct NetworkVisualizationView: View {
+    let nodes: [MemoryNode]
+    let connections: [KnowledgeConnection]
+    
+    var body: some View {
+        Canvas { context, size in
+            // Simple network visualization
+            let center = CGPoint(x: size.width / 2, y: size.height / 2)
+            let radius = min(size.width, size.height) * 0.3
+            
+            // Draw connections
+            for connection in connections {
+                if let sourceNode = nodes.first(where: { $0.id == connection.sourceNodeId }),
+                   let targetNode = nodes.first(where: { $0.id == connection.targetNodeId }) {
+                    
+                    let sourceIndex = nodes.firstIndex(where: { $0.id == sourceNode.id }) ?? 0
+                    let targetIndex = nodes.firstIndex(where: { $0.id == targetNode.id }) ?? 0
+                    
+                    let sourceAngle = Double(sourceIndex) * 2 * .pi / Double(nodes.count)
+                    let targetAngle = Double(targetIndex) * 2 * .pi / Double(nodes.count)
+                    
+                    let sourcePoint = CGPoint(
+                        x: center.x + radius * cos(sourceAngle),
+                        y: center.y + radius * sin(sourceAngle)
+                    )
+                    
+                    let targetPoint = CGPoint(
+                        x: center.x + radius * cos(targetAngle),
+                        y: center.y + radius * sin(targetAngle)
+                    )
+                    
+                    // Draw connection line
+                    context.stroke(
+                        Path { path in
+                            path.move(to: sourcePoint)
+                            path.addLine(to: targetPoint)
+                        },
+                        with: .color(.secondary.opacity(0.3)),
+                        lineWidth: CGFloat(connection.strength * 3)
+                    )
+                }
+            }
+            
+            // Draw nodes
+            for (index, node) in nodes.enumerated() {
+                let angle = Double(index) * 2 * .pi / Double(nodes.count)
+                let point = CGPoint(
+                    x: center.x + radius * cos(angle),
+                    y: center.y + radius * sin(angle)
+                )
+                
+                // Draw node circle
+                context.fill(
+                    Circle().path(in: CGRect(
+                        x: point.x - 8,
+                        y: point.y - 8,
+                        width: 16,
+                        height: 16
+                    )),
+                    with: .color(node.nodeType.color)
+                )
+            }
+        }
+        .overlay(
+            VStack {
+                Text("Network Visualization")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Text("\(nodes.count) nodes, \(connections.count) connections")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        )
     }
 }

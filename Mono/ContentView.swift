@@ -501,29 +501,45 @@ struct ContentView: View {
 
                     Spacer()
                     
-                    // Focus mode indicator
+                    // Focus mode indicator (tap to cycle)
                     if focusManager.currentFocusMode != .unknown {
-                        HStack(spacing: 4) {
-                            Image(systemName: focusIconForMode(focusManager.currentFocusMode))
-                                .font(.caption)
-                                .foregroundColor(.cassetteTeal)
-                            Text(focusManager.currentFocusMode.rawValue)
-                                .font(.caption2)
-                                .foregroundColor(.cassetteTextMedium)
+                        Button(action: { 
+                            cycleFocusMode()
+                            print("🏠 Focus indicator tapped - current mode: \(focusManager.currentFocusMode.rawValue)")
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: focusIconForMode(focusManager.currentFocusMode))
+                                    .font(.caption)
+                                    .foregroundColor(.cassetteTeal)
+                                Text(focusManager.currentFocusMode.rawValue)
+                                    .font(.caption2)
+                                    .foregroundColor(.cassetteTextMedium)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule()
+                                    .fill(Color.cassetteTeal.opacity(0.1))
+                            )
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule()
-                                .fill(Color.cassetteTeal.opacity(0.1))
-                        )
+                        .buttonStyle(PlainButtonStyle())
                     }
                     
                     // Mode label (tap to cycle, adapts to focus)
-                    Button(action: { withAnimation(.easeInOut(duration: 0.3)) { cyclePersonalityMode() } }) {
-                        Label(viewModel.currentMode.rawValue.lowercased(), systemImage: "brain.head.profile")
-                            .font(.subheadline)
-                            .foregroundColor(.cassetteTextMedium)
+                    Button(action: { 
+                        withAnimation(.easeInOut(duration: 0.3)) { 
+                            cyclePersonalityMode() 
+                        }
+                        print("🧠 Brain icon tapped - current mode: \(viewModel.currentMode.rawValue)")
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "brain.head.profile")
+                                .font(.subheadline)
+                                .foregroundColor(.cassetteTeal)
+                            Text(viewModel.currentMode.rawValue.lowercased())
+                                .font(.subheadline)
+                                .foregroundColor(.cassetteTextMedium)
+                        }
                     }
                     // Settings (compact)
                     Button(action: { showingSettings = true }) {
@@ -979,6 +995,23 @@ struct ChatMessagesPane: View {
             let impactFeedback = UIImpactFeedbackGenerator(style: .light)
             impactFeedback.impactOccurred()
         }
+    }
+    
+    private func cycleFocusMode() {
+        let focusModes = FocusManager.FocusMode.allCases.filter { $0 != .unknown }
+        let currentMode = focusManager.currentFocusMode
+        
+        if let currentIndex = focusModes.firstIndex(of: currentMode) {
+            let nextIndex = (currentIndex + 1) % focusModes.count
+            focusManager.setFocusMode(focusModes[nextIndex])
+        } else {
+            // If current mode is unknown, start with work mode
+            focusManager.setFocusMode(.work)
+        }
+        
+        // Haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
     }
     
     private func focusIconForMode(_ mode: FocusManager.FocusMode) -> String {
